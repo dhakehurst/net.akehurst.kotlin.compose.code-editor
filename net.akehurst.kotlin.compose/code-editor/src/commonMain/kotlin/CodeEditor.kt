@@ -183,7 +183,12 @@ fun CodeEditor(
                                                 lineStartPos - firstPos,
                                                 lineFinishPos - firstPos
                                             )
-                                            val toks = getLineTokens(lineNum, lineText)
+                                            val toks = try {
+                                                getLineTokens(lineNum, lineText)
+                                            } catch (t:Throwable) {
+                                                //TODO: log error!
+                                                emptyList()
+                                            }
                                             for (tk in toks) {
                                                 val offsetStart = tk.start - firstPos
                                                 val offsetFinish = tk.end - firstPos
