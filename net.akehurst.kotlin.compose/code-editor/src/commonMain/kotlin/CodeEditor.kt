@@ -16,6 +16,7 @@
 
 // suppress these so we can access TextFieldScrollerPosition
 @file:Suppress("UNUSED", "INVISIBLE_MEMBER", "INVISIBLE_REFERENCE")
+
 package net.akehurst.kotlin.compose.editor
 
 import androidx.compose.foundation.ExperimentalFoundationApi
@@ -38,8 +39,14 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.ui.input.key.Key
+import androidx.compose.ui.input.key.isCtrlPressed
+import androidx.compose.ui.input.key.key
+import androidx.compose.ui.input.key.onKeyEvent
 import androidx.compose.ui.text.*
 import androidx.compose.ui.text.input.TextFieldValue
+import androidx.compose.ui.unit.IntOffset
+import kotlinx.coroutines.launch
 import kotlin.math.max
 
 interface EditorLineToken {
@@ -47,6 +54,20 @@ interface EditorLineToken {
     val start: Int
     val end: Int
 }
+
+interface AutocompleteItem {
+    val text: String
+    val name: String
+
+    fun equalTo(other:AutocompleteItem):Boolean
+}
+
+interface AutocompleteSuggestion {
+    fun provide(items: List<AutocompleteItem>)
+}
+
+typealias LineTokensFunction = ((lineNumber: Int, lineText: String) -> List<EditorLineToken>)
+typealias AutocompleteFunction = suspend (position: Int, text: String, result: AutocompleteSuggestion) -> Unit
 
 data class CursorDetails(
     val brush: SolidColor,
@@ -65,24 +86,33 @@ fun CodeEditor(
     initialText: String = "",
     onTextChange: (String) -> Unit = {},
     modifier: Modifier = Modifier,
-    getLineTokens: ((lineNumber: Int, lineText: String) -> List<EditorLineToken>) = { _, _ -> emptyList() },
+    getLineTokens: LineTokensFunction = { _, _ -> emptyList() },
+    requestAutocompleteSuggestions: AutocompleteFunction = { _, _, _ -> },
 ) {
-    val inputScrollerPosition = rememberSaveable(Orientation.Vertical, saver = TextFieldScrollerPosition.Saver) { TextFieldScrollerPosition(Orientation.Vertical) }
-    var inputTextValue by remember { mutableStateOf(TextFieldValue(initialText)) }
-    var viewTextValue by remember { mutableStateOf(TextFieldValue("")) }
-    var viewFirstLinePos by remember { mutableStateOf(0) }
-    var viewCursorRect by remember { mutableStateOf(Rect.Zero) }
+    val scope = rememberCoroutineScope()
     val defaultTextStyle = SpanStyle(color = MaterialTheme.colorScheme.onBackground)
-    val viewCursors by remember { mutableStateOf(mutableListOf(CursorDetails(SolidColor(Color.Red), Offset.Zero, Offset.Zero))) }
+    val state by remember { mutableStateOf(EditorState(initialText, requestAutocompleteSuggestions)) }
+    val inputScrollerPosition = rememberSaveable(Orientation.Vertical, saver = TextFieldScrollerPosition.Saver) { TextFieldScrollerPosition(Orientation.Vertical) }
 
-    fun TextRange.toView(textLayoutResult: TextLayoutResult): TextRange {
-        val s = this.start
-        val e = this.end
-        return TextRange(
-            max(0, this.start - viewFirstLinePos),
-            max(0, this.end - viewFirstLinePos)
-        )
-    }
+    fun handleCtrlKey(key: Key):Boolean =when (key) {
+            Key.Spacebar -> { // autocomplete
+                scope.launch { state.autocompleteState.open() }
+                true
+            }
+            Key.Escape -> {
+                state.autocompleteState.isVisible = false
+                true
+            }
+            Key.Enter -> {
+                if(state.autocompleteState.isVisible) {
+                    state.autocompleteState.chooseSelected()
+                    true
+                } else {
+                    false
+                }
+            }
+            else -> false
+        }
 
     Surface {
         Column(modifier) {
@@ -104,15 +134,15 @@ fun CodeEditor(
                         MyCoreTextField(
                             readOnly = false,
                             enabled = true,
-                            value = viewTextValue,
-                            onValueChange = { viewTextValue = it },
+                            value = state.viewTextValue,
+                            onValueChange = { state.viewTextValue = it },
                             onTextLayout = {},
                             onScroll = {
                                 // update the drawn cursor position
                                 if (it != null) {
-                                    viewCursorRect = it.getCursorRect(viewTextValue.selection.start)
-                                    val cr = viewCursorRect
-                                    viewCursors[0].update(cr.topCenter, cr.height)
+                                    state.viewCursorRect = it.getCursorRect(state.viewTextValue.selection.start)
+                                    val cr = state.viewCursorRect
+                                    state.viewCursors[0].update(cr.topCenter, cr.height)
                                 }
                             },
                             modifier = Modifier
@@ -121,7 +151,7 @@ fun CodeEditor(
                                     drawContent()
                                     // draw the cursors
                                     // (can't see how to make the actual cursor visible unless the control has focus)
-                                    viewCursors.forEach {
+                                    state.viewCursors.forEach {
                                         drawLine(
                                             strokeWidth = 3f,
                                             brush = it.brush,
@@ -148,16 +178,23 @@ fun CodeEditor(
                         MyCoreTextField(
                             cursorBrush = SolidColor(Color.Transparent),
                             textStyle = TextStyle(color = Color.Transparent),
-                            value = inputTextValue,
+                            value = state.inputTextValue,
                             onValueChange = {
                                 onTextChange(it.text)
-                                inputTextValue = it
+                                state.inputTextValue = it
                             },
                             onTextLayout = {
-                                viewTextValue = viewTextValue.copy(selection = inputTextValue.selection.toView(it))
+                                state.viewTextValue = state.viewTextValue.copy(selection = state.viewSelection)
                             },
                             modifier = Modifier
-                                .fillMaxWidth(),
+                                .fillMaxWidth()
+                                .onKeyEvent { ev ->
+                                    if (ev.isCtrlPressed) {
+                                        handleCtrlKey(ev.key)
+                                    } else {
+                                        false
+                                    }
+                                },
                             textScrollerPosition = inputScrollerPosition,
                             onScroll = { textLayoutResult ->
                                 if (textLayoutResult != null) {
@@ -166,14 +203,14 @@ fun CodeEditor(
                                     val firstLine = textLayoutResult.MygetLineForVerticalPosition(st)
                                     val lastLine = textLayoutResult.MygetLineForVerticalPosition(st + len)//-1
                                     val firstPos = textLayoutResult.getLineStart(firstLine)
-                                    viewFirstLinePos = firstPos
+                                    state.viewFirstLinePos = firstPos
                                     val lastPos = textLayoutResult.getLineEnd(lastLine)
-                                    val viewText = inputTextValue.text.substring(firstPos, lastPos)
+                                    val viewText = state.inputTextValue.text.substring(firstPos, lastPos)
                                     val annotated = buildAnnotatedString {
                                         for (lineNum in firstLine..lastLine) {
                                             val lineStartPos = textLayoutResult.getLineStart(lineNum)
                                             val lineFinishPos = textLayoutResult.getLineEnd(lineNum)
-                                            val lineText = inputTextValue.text.substring(lineStartPos, lineFinishPos)
+                                            val lineText = state.inputTextValue.text.substring(lineStartPos, lineFinishPos)
                                             if (lineNum != firstLine) {
                                                 append("\n")
                                             }
@@ -185,7 +222,7 @@ fun CodeEditor(
                                             )
                                             val toks = try {
                                                 getLineTokens(lineNum, lineText)
-                                            } catch (t:Throwable) {
+                                            } catch (t: Throwable) {
                                                 //TODO: log error!
                                                 emptyList()
                                             }
@@ -196,14 +233,48 @@ fun CodeEditor(
                                             }
                                         }
                                     }
-                                    val sel = inputTextValue.selection //.toView(textLayoutResult)
-                                    viewTextValue = inputTextValue.copy(annotatedString = annotated, selection = sel)
+                                    val sel = state.inputTextValue.selection //.toView(textLayoutResult)
+                                    state.viewTextValue = state.inputTextValue.copy(annotatedString = annotated, selection = sel)
                                 }
                             }
                         )
                     }
+
+                    // for autocomplete popup
+                    AutocompletePopup(
+                        state = state.autocompleteState,
+                        offset = state.autocompleteOffset
+                    )
                 }
             }
         }
     }
+}
+
+@Stable
+internal class EditorState(
+    initialText: String,
+    requestAutocompleteSuggestions: AutocompleteFunction
+) {
+    var inputTextValue by mutableStateOf(TextFieldValue(initialText))
+    var viewTextValue by mutableStateOf(TextFieldValue(""))
+    var viewFirstLinePos by mutableStateOf(0)
+    var viewCursorRect by mutableStateOf(Rect.Zero)
+    val viewCursors by mutableStateOf(mutableListOf(CursorDetails(SolidColor(Color.Red), Offset.Zero, Offset.Zero)))
+    val autocompleteState by mutableStateOf(AutocompleteState(this, requestAutocompleteSuggestions))
+    val autocompleteOffset by mutableStateOf(IntOffset(-1, -1))
+
+    val inputText get() = inputTextValue.text
+    val inputSelection get() = inputTextValue.selection
+    val viewSelection: TextRange
+        get() {
+            val range = inputTextValue.selection
+            val s = range.start
+            val e = range.end
+            return TextRange(
+                max(0, range.start - viewFirstLinePos),
+                max(0, range.end - viewFirstLinePos)
+            )
+        }
+
 }
