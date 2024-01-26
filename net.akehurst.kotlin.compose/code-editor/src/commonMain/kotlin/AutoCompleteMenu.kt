@@ -19,7 +19,7 @@ package net.akehurst.kotlin.compose.editor
 import androidx.compose.foundation.*
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.MaterialTheme
@@ -28,52 +28,34 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.input.key.Key
-import androidx.compose.ui.input.key.key
-import androidx.compose.ui.input.key.onKeyEvent
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.round
 
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
 internal fun AutocompletePopup(
-    state: AutocompleteState,
-    offset: IntOffset
+    state: AutocompleteState
 ) {
     if (state.isVisible) {
         Surface(
             shadowElevation = 1.dp,
             border = BorderStroke(Dp.Hairline, MaterialTheme.colorScheme.onSurface),
             modifier = Modifier
-                .absoluteOffset({ offset })
+                .offset { state.editorState.viewCursorRect.bottomRight.round() }
                 .widthIn(min = 150.dp, max = 300.dp)
                 .padding(vertical = 2.dp)
         ) {
             Column {
                 // List
                 LazyColumn(
-                    modifier = Modifier
-                        .onKeyEvent { ev ->
-                            when (ev.key) {
-                                Key.Escape -> {
-                                    state.close()
-                                    true
-                                }
-
-                                Key.Enter -> {
-                                    state.chooseSelected()
-                                    true
-                                }
-
-                                else -> false
-                            }
-                        }
+                    //state = state.lazyListState
                 ) {
-                    itemsIndexed(state.items) { _, item ->
+                    itemsIndexed(state.items) { idx, item ->
                         Row(
                             modifier = Modifier
-                                .background(color = if (state.isSelected(item)) MaterialTheme.colorScheme.onBackground else Color.Transparent)
+                                .background(color = if (state.isSelected(idx)) MaterialTheme.colorScheme.onBackground else Color.Transparent)
                                 .padding(top = 2.dp, bottom = 3.dp, start = 2.dp, end = 2.dp)
                                 .onClick(
                                     onClick = { state.choose(item) },
@@ -104,10 +86,13 @@ internal class AutocompleteState(
     val editorState: EditorState,
     val requestAutocompleteSuggestions: AutocompleteFunction
 ) {
+    //val lazyListState = LazyListState()
     var isVisible by mutableStateOf(false)
     var isLoading by mutableStateOf(true)
-    var selection by mutableStateOf<AutocompleteItem?>(null)
-    val items = mutableStateListOf<AutocompleteItem>()
+    var selectedIndex by mutableStateOf<Int>(-1)
+    var items = mutableStateListOf<AutocompleteItem>()
+
+    val selectedItem get() = items.getOrNull(selectedIndex)
 
     suspend fun open() {
         isVisible = true
@@ -121,12 +106,26 @@ internal class AutocompleteState(
         requestAutocompleteSuggestions.invoke(editorState.inputSelection.start, editorState.inputText, result)
     }
 
+    fun selectNext() {
+        when {
+            selectedIndex < (items.size - 1) -> selectedIndex++
+            else -> Unit
+        }
+    }
+
+    fun selectPrevious() {
+        when {
+            selectedIndex > 0 -> selectedIndex--
+            else -> Unit
+        }
+    }
+
     fun choose(item: AutocompleteItem) {
-        selection = item
+        selectedIndex = items.indexOf(item)
         chooseSelected()
     }
 
-    fun isSelected(item: AutocompleteItem): Boolean = null != selection && item.equalTo(selection!!)
+    fun isSelected(idx:Int): Boolean = selectedIndex == idx
 
     fun chooseSelected() {
 
@@ -136,6 +135,6 @@ internal class AutocompleteState(
     fun close() {
         isVisible = false
         items.clear()
-        selection = null
+        selectedIndex = -1
     }
 }

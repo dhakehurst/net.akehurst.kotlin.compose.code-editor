@@ -20,17 +20,18 @@
 package net.akehurst.kotlin.compose.editor
 
 import androidx.compose.foundation.ExperimentalFoundationApi
+import androidx.compose.foundation.background
 import androidx.compose.foundation.gestures.Orientation
-import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.layout.RowScopeInstance.weight
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.text.MyCoreTextField
 import androidx.compose.foundation.text.MygetLineForVerticalPosition
 import androidx.compose.foundation.text.TextFieldScrollerPosition
 import androidx.compose.foundation.text.selection.LocalTextSelectionColors
 import androidx.compose.foundation.text.selection.TextSelectionColors
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Surface
 import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Modifier
@@ -39,27 +40,25 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
-import androidx.compose.ui.input.key.Key
-import androidx.compose.ui.input.key.isCtrlPressed
-import androidx.compose.ui.input.key.key
-import androidx.compose.ui.input.key.onKeyEvent
+import androidx.compose.ui.input.key.*
 import androidx.compose.ui.text.*
 import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.unit.IntOffset
+import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.launch
 import kotlin.math.max
 
 interface EditorLineToken {
     val style: SpanStyle
     val start: Int
-    val end: Int
+    val finish: Int
 }
 
 interface AutocompleteItem {
     val text: String
     val name: String
 
-    fun equalTo(other:AutocompleteItem):Boolean
+    fun equalTo(other: AutocompleteItem): Boolean
 }
 
 interface AutocompleteSuggestion {
@@ -80,6 +79,18 @@ data class CursorDetails(
     }
 }
 
+val KeyEvent.isCtrlSpace
+    get() = if ((key == Key.Spacebar || utf16CodePoint == ' '.toInt()) && isCtrlPressed) {
+        true
+    } else {
+        false
+    }
+
+//FIXME: bug on JS getLineEnd does not work - workaround
+val rx = Regex("\n")
+val String.lineEndsAt get() = rx.findAll(this+"\n")
+
+
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
 fun CodeEditor(
@@ -94,167 +105,217 @@ fun CodeEditor(
     val state by remember { mutableStateOf(EditorState(initialText, requestAutocompleteSuggestions)) }
     val inputScrollerPosition = rememberSaveable(Orientation.Vertical, saver = TextFieldScrollerPosition.Saver) { TextFieldScrollerPosition(Orientation.Vertical) }
 
-    fun handleCtrlKey(key: Key):Boolean =when (key) {
-            Key.Spacebar -> { // autocomplete
-                scope.launch { state.autocompleteState.open() }
-                true
-            }
-            Key.Escape -> {
-                state.autocompleteState.isVisible = false
-                true
-            }
-            Key.Enter -> {
-                if(state.autocompleteState.isVisible) {
+    //FIXME: bug on JS getLineEnd does not work - workaround
+    val lineEndsAt = remember { mutableStateListOf<MatchResult>(*initialText.lineEndsAt.toList().toTypedArray()) }
+
+    fun handlePreviewKeyEvent(ev: KeyEvent): Boolean = when (ev.type) {
+        KeyEventType.KeyDown -> when {
+            state.autocompleteState.isVisible -> when (ev.key) {
+                Key.Escape -> {
+                    state.autocompleteState.close()
+                    true
+                }
+
+                Key.Enter -> {
                     state.autocompleteState.chooseSelected()
                     true
-                } else {
-                    false
                 }
+
+                Key.DirectionDown -> {
+                    state.autocompleteState.selectNext()
+                    true
+                }
+
+                Key.DirectionUp -> {
+                    state.autocompleteState.selectPrevious()
+                    true
+                }
+
+                else -> false
             }
-            else -> false
+
+            else -> when {
+                ev.isCtrlSpace -> {
+                    // autocomplete
+                    scope.launch { state.autocompleteState.open() }
+                    true
+                }
+
+                else -> false
+            }
         }
 
-    Surface {
-        Column(modifier) {
-            Surface(
-                modifier = Modifier.weight(1f, true),
-                color = MaterialTheme.colorScheme.background
-            ) {
-                Box {
-                    CompositionLocalProvider(
-                        LocalTextSelectionColors provides TextSelectionColors(
-                            handleColor = LocalTextSelectionColors.current.handleColor,
-                            backgroundColor = Color.Red
-                        )
-                    ) {
-                        // Visible Viewport
-                        // A CoreTextField that displays the styled text
-                        // just the subsection of text that is visible is formatted
-                        // The 'input' CoreTextField is transparent and sits on top of this.
-                        MyCoreTextField(
-                            readOnly = false,
-                            enabled = true,
-                            value = state.viewTextValue,
-                            onValueChange = { state.viewTextValue = it },
-                            onTextLayout = {},
-                            onScroll = {
-                                // update the drawn cursor position
-                                if (it != null) {
-                                    state.viewCursorRect = it.getCursorRect(state.viewTextValue.selection.start)
-                                    val cr = state.viewCursorRect
-                                    state.viewCursors[0].update(cr.topCenter, cr.height)
-                                }
-                            },
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .drawWithContent {
-                                    drawContent()
-                                    // draw the cursors
-                                    // (can't see how to make the actual cursor visible unless the control has focus)
-                                    state.viewCursors.forEach {
-                                        drawLine(
-                                            strokeWidth = 3f,
-                                            brush = it.brush,
-                                            start = it.start,
-                                            end = it.end
-                                        )
-                                    }
-                                },
-                            //cursorBrush = SolidColor(MaterialTheme.colorScheme.onBackground),
-                        )
-                    }
+        else -> when {
+            ev.isCtrlSpace -> true
+            else -> false
+        }
+    }
 
-                    // The input CoreTextField
-                    // sits on top receives user interactions
-                    // and contains the whole text - with no syling
-                    // Transparent
-                    CompositionLocalProvider(
-                        // make selections transparent in the in
-                        LocalTextSelectionColors provides TextSelectionColors(
-                            handleColor = LocalTextSelectionColors.current.handleColor,
-                            backgroundColor = Color.Transparent
-                        )
-                    ) {
-                        MyCoreTextField(
-                            cursorBrush = SolidColor(Color.Transparent),
-                            textStyle = TextStyle(color = Color.Transparent),
-                            value = state.inputTextValue,
-                            onValueChange = {
-                                onTextChange(it.text)
-                                state.inputTextValue = it
-                            },
-                            onTextLayout = {
-                                state.viewTextValue = state.viewTextValue.copy(selection = state.viewSelection)
-                            },
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .onKeyEvent { ev ->
-                                    if (ev.isCtrlPressed) {
-                                        handleCtrlKey(ev.key)
+    Row(
+        modifier = modifier.weight(1f)
+    ) {
+        LazyColumn(
+            modifier = Modifier
+                .width(20.dp)
+                .fillMaxHeight()
+                .background(color = Color.Yellow)
+        ) {
+            itemsIndexed(state.annotationsState.annotations) { idx, ann ->
+                Row(
+                ) { }
+            }
+        }
+        //Text editing
+        Box(
+            modifier = Modifier.fillMaxSize()
+        ) {
+            CompositionLocalProvider(
+                LocalTextSelectionColors provides TextSelectionColors(
+                    handleColor = LocalTextSelectionColors.current.handleColor,
+                    backgroundColor = Color.Red
+                )
+            ) {
+                // Visible Viewport
+                // A CoreTextField that displays the styled text
+                // just the subsection of text that is visible is formatted
+                // The 'input' CoreTextField is transparent and sits on top of this.
+                MyCoreTextField(
+                    readOnly = false,
+                    enabled = true,
+                    value = state.viewTextValue,
+                    onValueChange = { state.viewTextValue = it },
+                    onTextLayout = {},
+                    onScroll = {
+                        // update the drawn cursor position
+                        if (it != null) {
+                            state.viewCursorRect = it.getCursorRect(state.viewTextValue.selection.start)
+                            val cr = state.viewCursorRect
+                            state.viewCursors[0].update(cr.topCenter, cr.height)
+                        }
+                    },
+                    modifier = Modifier
+ //                       .background(color = Color.Green)
+                        .fillMaxSize()
+                        .drawWithContent {
+                            drawContent()
+                            // draw the cursors
+                            // (can't see how to make the actual cursor visible unless the control has focus)
+                            state.viewCursors.forEach {
+                                drawLine(
+                                    strokeWidth = 3f,
+                                    brush = it.brush,
+                                    start = it.start,
+                                    end = it.end
+                                )
+                            }
+                        },
+                    //cursorBrush = SolidColor(MaterialTheme.colorScheme.onBackground),
+                )
+            }
+
+            // The input CoreTextField
+            // sits on top receives user interactions
+            // and contains the whole text - with no syling
+            // Transparent
+            CompositionLocalProvider(
+                // make selections transparent in the in
+                LocalTextSelectionColors provides TextSelectionColors(
+                    handleColor = LocalTextSelectionColors.current.handleColor,
+                    backgroundColor = Color.Transparent
+                )
+            ) {
+                MyCoreTextField(
+                    cursorBrush = SolidColor(Color.Transparent),
+                    textStyle = TextStyle(color = Color.Transparent),
+                    value = state.inputTextValue,
+                    onValueChange = {
+                        onTextChange(it.text)
+                        state.inputTextValue = it
+
+                        //FIXME: bug on JS getLineEnd does not work - workaround
+                        lineEndsAt.clear()
+                        lineEndsAt.addAll(it.text.lineEndsAt)
+                    },
+                    onTextLayout = {
+                        state.viewTextValue = state.viewTextValue.copy(selection = state.viewSelection)
+                    },
+                    modifier = Modifier
+                        .fillMaxSize(),
+ //                       .onPreviewKeyEvent { ev -> handlePreviewKeyEvent(ev) },
+                    textScrollerPosition = inputScrollerPosition,
+                    onScroll = { textLayoutResult ->
+                        if (textLayoutResult != null) {
+                            val st = inputScrollerPosition.offset
+                            val len = inputScrollerPosition.viewportSize
+                            val firstLine = textLayoutResult.MygetLineForVerticalPosition(st)
+                            val lastLine = textLayoutResult.MygetLineForVerticalPosition(st + len)//-1
+                            //val firstPos = textLayoutResult.getLineStart(firstLine)
+                            //val lastPos = textLayoutResult.getLineEnd(lastLine)
+
+                            //FIXME: bug on JS getLineEnd does not work - workaround
+                            val fp = if (firstLine==0) {
+                                0
+                            } else {
+                                lineEndsAt.getOrNull(firstLine-1)?.range?.last ?: -1
+                            }
+                            val lp = lineEndsAt.getOrNull(lastLine)?.range?.first ?: -1
+
+                            state.viewFirstLinePos = fp //firstPos
+
+                            //val viewText = state.inputTextValue.text.substring(firstPos, lastPos)
+                            val annotated = buildAnnotatedString {
+                                for (lineNum in firstLine..lastLine) {
+                                    //val lineStartPos = textLayoutResult.getLineStart(lineNum)
+                                    //val lineFinishPos = textLayoutResult.getLineEnd(lineNum)
+                                    //FIXME: bug on JS getLineEnd does not work - workaround
+                                    val lineStartPos = if (firstLine==0) {
+                                        0
                                     } else {
-                                        false
+                                        lineEndsAt.getOrNull(lineNum-1)?.range?.last ?: -1
                                     }
-                                },
-                            textScrollerPosition = inputScrollerPosition,
-                            onScroll = { textLayoutResult ->
-                                if (textLayoutResult != null) {
-                                    val st = inputScrollerPosition.offset
-                                    val len = inputScrollerPosition.viewportSize
-                                    val firstLine = textLayoutResult.MygetLineForVerticalPosition(st)
-                                    val lastLine = textLayoutResult.MygetLineForVerticalPosition(st + len)//-1
-                                    val firstPos = textLayoutResult.getLineStart(firstLine)
-                                    state.viewFirstLinePos = firstPos
-                                    val lastPos = textLayoutResult.getLineEnd(lastLine)
-                                    val viewText = state.inputTextValue.text.substring(firstPos, lastPos)
-                                    val annotated = buildAnnotatedString {
-                                        for (lineNum in firstLine..lastLine) {
-                                            val lineStartPos = textLayoutResult.getLineStart(lineNum)
-                                            val lineFinishPos = textLayoutResult.getLineEnd(lineNum)
-                                            val lineText = state.inputTextValue.text.substring(lineStartPos, lineFinishPos)
-                                            if (lineNum != firstLine) {
-                                                append("\n")
-                                            }
-                                            append(lineText)
-                                            addStyle(
-                                                defaultTextStyle,
-                                                lineStartPos - firstPos,
-                                                lineFinishPos - firstPos
-                                            )
-                                            val toks = try {
-                                                getLineTokens(lineNum, lineText)
-                                            } catch (t: Throwable) {
-                                                //TODO: log error!
-                                                emptyList()
-                                            }
-                                            for (tk in toks) {
-                                                val offsetStart = tk.start - firstPos
-                                                val offsetFinish = tk.end - firstPos
-                                                addStyle(tk.style, offsetStart, offsetFinish)
-                                            }
-                                        }
+                                    val lineFinishPos = lineEndsAt.getOrNull(lineNum)?.range?.first ?: -1
+
+                                    val lineText = state.inputTextValue.text.substring(lineStartPos, lineFinishPos)
+                                    if (lineNum != firstLine) {
+                                        append("\n")
                                     }
-                                    val sel = state.inputTextValue.selection //.toView(textLayoutResult)
-                                    state.viewTextValue = state.inputTextValue.copy(annotatedString = annotated, selection = sel)
+                                    append(lineText)
+                                    addStyle(
+                                        defaultTextStyle,
+                                        lineStartPos - fp, //firstPos,
+                                        lineFinishPos - fp //firstPos
+                                    )
+                                    val toks = try {
+                                        getLineTokens(lineNum, lineText)
+                                    } catch (t: Throwable) {
+                                        //TODO: log error!
+                                        emptyList()
+                                    }
+                                    for (tk in toks) {
+                                        val offsetStart = tk.start - fp //firstPos
+                                        val offsetFinish = tk.finish - fp //firstPos
+                                        addStyle(tk.style, offsetStart, offsetFinish)
+                                    }
                                 }
                             }
-                        )
+                            val sel = state.inputTextValue.selection //.toView(textLayoutResult)
+                            state.viewTextValue = state.inputTextValue.copy(annotatedString = annotated, selection = sel)
+                        }
                     }
-
-                    // for autocomplete popup
-                    AutocompletePopup(
-                        state = state.autocompleteState,
-                        offset = state.autocompleteOffset
-                    )
-                }
+                )
             }
         }
     }
+    // for autocomplete popup
+    AutocompletePopup(
+        state = state.autocompleteState
+    )
 }
 
 @Stable
 internal class EditorState(
-    initialText: String,
-    requestAutocompleteSuggestions: AutocompleteFunction
+    initialText: String = "",
+    requestAutocompleteSuggestions: AutocompleteFunction = { _, _, _ -> }
 ) {
     var inputTextValue by mutableStateOf(TextFieldValue(initialText))
     var viewTextValue by mutableStateOf(TextFieldValue(""))
@@ -277,4 +338,5 @@ internal class EditorState(
             )
         }
 
+    val annotationsState by mutableStateOf(AnnotationState())
 }
