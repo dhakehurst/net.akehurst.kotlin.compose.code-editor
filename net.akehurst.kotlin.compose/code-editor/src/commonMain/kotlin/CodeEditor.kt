@@ -268,7 +268,7 @@ fun CodeEditor(
                                     //val lineStartPos = textLayoutResult.getLineStart(lineNum)
                                     //val lineFinishPos = textLayoutResult.getLineEnd(lineNum)
                                     //FIXME: bug on JS getLineEnd does not work - workaround
-                                    val lineStartPos = if (firstLine==0) {
+                                    val lineStartPos = if (lineNum==0) {
                                         0
                                     } else {
                                         lineEndsAt.getOrNull(lineNum-1)?.range?.last ?: -1
