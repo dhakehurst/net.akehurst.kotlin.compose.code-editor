@@ -43,7 +43,7 @@ internal fun AutocompletePopup(
             shadowElevation = 1.dp,
             border = BorderStroke(Dp.Hairline, MaterialTheme.colorScheme.onSurface),
             modifier = Modifier
-                .offset { state.editorState.viewCursorRect.bottomRight.round() }
+                .offset { state.editorState.viewCursors[0].rect.bottomRight.round() }
                 .widthIn(min = 150.dp, max = 300.dp)
                 .padding(vertical = 2.dp)
         ) {
@@ -128,7 +128,8 @@ internal class AutocompleteState(
     fun isSelected(idx:Int): Boolean = selectedIndex == idx
 
     fun chooseSelected() {
-
+        val textToInsert = this.selectedItem?.text ?: ""
+        editorState.insertText(textToInsert)
         close()
     }
 
