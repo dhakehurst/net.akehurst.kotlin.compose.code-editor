@@ -46,6 +46,8 @@ import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import kotlin.math.max
 import kotlin.math.min
 
@@ -77,7 +79,7 @@ interface AutocompleteSuggestion {
     fun provide(items: List<AutocompleteItem>)
 }
 
-typealias LineTokensFunction = ((lineNumber: Int, lineStartPosition:Int, lineText: String) -> List<EditorLineToken>)
+typealias LineTokensFunction = ((lineNumber: Int, lineStartPosition: Int, lineText: String) -> List<EditorLineToken>)
 typealias AutocompleteFunction = suspend (position: Int, text: String, result: AutocompleteSuggestion) -> Unit
 
 data class CursorDetails(
@@ -115,24 +117,43 @@ class LineMetrics(
         val eol = Regex("\n")
     }
 
-    var lineEndsAt = eol.findAll(initialText).toList()
+    private val mutex = Mutex()
+    private var lineEndsAt = eol.findAll(initialText).toList()
 
     val lineCount get() = lineEndsAt.size + 1
     val firstPosition = 0
     var lastPosition = initialText.length; private set
 
-    fun update(newText: String) {
-        lastPosition = newText.length
-        lineEndsAt = eol.findAll(newText).toList()
+    suspend fun update(newText: String) {
+        mutex.withLock {
+            lastPosition = newText.length
+            lineEndsAt = eol.findAll(newText).toList()
+        }
     }
 
-    fun lineStart(lineNumber: Int) = when {
+    suspend fun viewEnds(firstLine:Int, lastLine:Int): Pair<Int, Int> {
+        mutex.withLock {
+            val s = lineStart(firstLine)
+            val f = lineFinish(lastLine)
+            return Pair(s, f)
+        }
+    }
+
+    suspend fun lineEnds(lineNumber: Int): Pair<Int, Int> {
+        mutex.withLock {
+            val s = lineStart(lineNumber)
+            val f = lineFinish(lineNumber)
+            return Pair(s, f)
+        }
+    }
+
+    private fun lineStart(lineNumber: Int) = when {
         0 == lineNumber -> 0
         lineNumber >= (lineCount) -> lastPosition
         else -> lineEndsAt[lineNumber - 1].range.last + 1
     }
 
-    fun lineFinish(lineNumber: Int) = when {
+    private fun lineFinish(lineNumber: Int) = when {
         lineNumber >= (lineCount - 1) -> lastPosition
         else -> lineEndsAt[lineNumber].range.first
     }
@@ -278,7 +299,9 @@ fun CodeEditor(
                         onTextChange(it.text)
                         state.inputTextValue = it
                         //FIXME: bug on JS getLineEnd does not work - workaround
-                        state.lineMetrics.value.update(it.text)
+                        scope.launch {
+                            state.lineMetrics.value.update(it.text)
+                        }
                     },
                     onTextLayout = { },
                     modifier = Modifier
@@ -287,7 +310,9 @@ fun CodeEditor(
                     textScrollerPosition = state.inputScrollerPosition,
                     onScroll = { textLayoutResult ->
                         if (textLayoutResult != null) {
-                            state.updateView(textLayoutResult)
+                            scope.launch {
+                                state.updateView(textLayoutResult)
+                            }
                         }
                     }
                 )
@@ -336,7 +361,7 @@ internal class EditorState(
 
     val annotationsState by mutableStateOf(AnnotationState())
 
-    fun updateView(inputTextLayoutResult: TextLayoutResult) {
+    suspend fun updateView(inputTextLayoutResult: TextLayoutResult) {
         if (0 == inputScrollerPosition.viewportSize) {
             // must have been set
         } else {
@@ -349,21 +374,19 @@ internal class EditorState(
             //val lastPos = textLayoutResult.getLineEnd(lastLine)
 
             //FIXME: bug on JS getLineEnd does not work - workaround using own line metrics
-            val fp = lineMetrics.value.lineStart(firstLine)
-            val lp = lineMetrics.value.lineFinish(lastLine)
+            val (fp, lp) = lineMetrics.value.viewEnds(firstLine, lastLine)
 
             viewFirstLinePos = fp //firstPos
             viewLastLinePos = lp
-                            println("View: lines [$firstLine-$lastLine] pos[$fp-$lp]")
+            println("View: lines [$firstLine-$lastLine] pos[$fp-$lp]")
             //val viewText = state.inputTextValue.text.substring(firstPos, lastPos)
             val annotated = buildAnnotatedString {
                 for (lineNum in firstLine..lastLine) {
                     //val lineStartPos = textLayoutResult.getLineStart(lineNum)
                     //val lineFinishPos = textLayoutResult.getLineEnd(lineNum)
                     //FIXME: bug on JS getLineEnd does not work - workaround
-                    val lineStartPos = lineMetrics.value.lineStart(lineNum)
-                    val lineFinishPos = lineMetrics.value.lineFinish(lineNum)
-                                    println("Line $lineNum: [$lineStartPos-$lineFinishPos]")
+                    val (lineStartPos, lineFinishPos) = lineMetrics.value.lineEnds(lineNum)
+                    println("Line $lineNum: [$lineStartPos-$lineFinishPos]")
                     val lineText = newText.substring(lineStartPos, lineFinishPos)
                     if (lineNum != firstLine) {
                         append("\n")
@@ -381,16 +404,16 @@ internal class EditorState(
                         emptyList()
                     }
                     for (tk in toks) {
-                                        println("tok: [${tk.start}-${tk.finish}]")
-                        val offsetStart = (lineStartPos+tk.start).coerceIn(lineStartPos, lineFinishPos+1)
-                        val offsetFinish = (lineStartPos+tk.finish).coerceIn(lineStartPos, lineFinishPos+1)
+                        val offsetStart = (lineStartPos + tk.start).coerceIn(lineStartPos, lineFinishPos + 1)
+                        val offsetFinish = (lineStartPos + tk.finish).coerceIn(lineStartPos, lineFinishPos + 1)
+                        println("tok: [${tk.start}-${tk.finish}] => [$offsetStart-$offsetFinish]")
                         addStyle(tk.style, offsetStart, offsetFinish)
                     }
                 }
             }
             val sel = inputTextValue.selection.toView()
             updateViewCursorPos()
-            viewTextValue = inputTextValue.copy(annotatedString = annotated, selection = sel)
+            viewTextValue = TextFieldValue(annotatedString = annotated, selection = sel)  //inputTextValue.copy(annotatedString = annotated, selection = sel)
         }
     }
 
