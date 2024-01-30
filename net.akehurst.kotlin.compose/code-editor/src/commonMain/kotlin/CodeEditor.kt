@@ -162,25 +162,18 @@ class LineMetrics(
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
 fun CodeEditor(
-    initialText: String = "",
-    defaultTextStyle: SpanStyle = SpanStyle(color = MaterialTheme.colorScheme.onBackground),
     onTextChange: (String) -> Unit = {},
     modifier: Modifier = Modifier,
-    getLineTokens: LineTokensFunction = { _, _, _ -> emptyList() },
-    requestAutocompleteSuggestions: AutocompleteFunction = { _, _, _ -> },
+    editorState: EditorState = EditorState(
+        initialText = "",
+        defaultTextStyle = SpanStyle(color = MaterialTheme.colorScheme.onBackground),
+        getLineTokens = { _, _, _ -> emptyList() },
+        requestAutocompleteSuggestions = { _, _, _ -> },
+    )
 ) {
 
     val scope = rememberCoroutineScope()
-    val state by remember {
-        mutableStateOf(
-            EditorState(
-                initialText,
-                defaultTextStyle = defaultTextStyle,
-                getLineTokens,
-                requestAutocompleteSuggestions
-            )
-        )
-    }
+    val state by remember { mutableStateOf(editorState) }
 
     fun handlePreviewKeyEvent(ev: KeyEvent): Boolean = when (ev.type) {
         KeyEventType.KeyDown -> when {
@@ -326,24 +319,23 @@ fun CodeEditor(
 }
 
 @Stable
-internal class EditorState(
+class EditorState(
     initialText: String = "",
-    val defaultTextStyle: SpanStyle,
-    val getLineTokens: LineTokensFunction = { _, _, _ -> emptyList() },
+    val defaultTextStyle: SpanStyle = SpanStyle(color = Color.Black, background = Color.White),
+    var getLineTokens: LineTokensFunction = { _, _, _ -> emptyList() },
     requestAutocompleteSuggestions: AutocompleteFunction = { _, _, _ -> }
 ) {
-
 
     //FIXME: bug on JS getLineEnd does not work - workaround
     val lineMetrics = mutableStateOf(LineMetrics(initialText))
 
-    val inputScrollerPosition by mutableStateOf(TextFieldScrollerPosition(Orientation.Vertical))
+    internal val inputScrollerPosition by mutableStateOf(TextFieldScrollerPosition(Orientation.Vertical))
     var inputTextValue by mutableStateOf(TextFieldValue(initialText))
     var viewTextValue by mutableStateOf(TextFieldValue(""))
     var viewFirstLinePos by mutableStateOf(0)
     var viewLastLinePos by mutableStateOf(0)
     val viewCursors by mutableStateOf(mutableListOf(CursorDetails(SolidColor(Color.Red))))
-    val autocompleteState by mutableStateOf(AutocompleteState(this, requestAutocompleteSuggestions))
+    internal val autocompleteState by mutableStateOf(AutocompleteState(this, requestAutocompleteSuggestions))
     val autocompleteOffset by mutableStateOf(IntOffset(-1, -1))
 
     val inputText get() = inputTextValue.text
