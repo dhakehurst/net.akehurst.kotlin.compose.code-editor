@@ -131,7 +131,7 @@ class LineMetrics(
         }
     }
 
-    suspend fun viewEnds(firstLine:Int, lastLine:Int): Pair<Int, Int> {
+    suspend fun viewEnds(firstLine: Int, lastLine: Int): Pair<Int, Int> {
         mutex.withLock {
             val s = lineStart(firstLine)
             val f = lineFinish(lastLine)
@@ -232,7 +232,7 @@ fun CodeEditor(
             modifier = Modifier
                 .width(20.dp)
                 .fillMaxHeight()
-                .background(color = Color.Yellow)
+                .background(color = Color.Transparent)
         ) {
             itemsIndexed(state.annotationsState.annotations) { idx, ann ->
                 Row(
@@ -378,25 +378,24 @@ internal class EditorState(
 
             viewFirstLinePos = fp //firstPos
             viewLastLinePos = lp
-            println("View: lines [$firstLine-$lastLine] pos[$fp-$lp]")
+//            println("View: lines [$firstLine-$lastLine] pos[$fp-$lp]")
             //val viewText = state.inputTextValue.text.substring(firstPos, lastPos)
             val annotated = buildAnnotatedString {
+                addStyle(defaultTextStyle, 0, lp - fp)  // mark whole text with default style
+//                println("Default-style: ${0}-${lp - fp}")
                 for (lineNum in firstLine..lastLine) {
                     //val lineStartPos = textLayoutResult.getLineStart(lineNum)
                     //val lineFinishPos = textLayoutResult.getLineEnd(lineNum)
                     //FIXME: bug on JS getLineEnd does not work - workaround
                     val (lineStartPos, lineFinishPos) = lineMetrics.value.lineEnds(lineNum)
-                    println("Line $lineNum: [$lineStartPos-$lineFinishPos]")
+                    val viewLineStart = lineStartPos - fp
+                    val viewLineFinish = lineFinishPos - fp
+//                    println("Line $lineNum: [$lineStartPos-$lineFinishPos] [$viewLineStart-$viewLineFinish]")
                     val lineText = newText.substring(lineStartPos, lineFinishPos)
                     if (lineNum != firstLine) {
                         append("\n")
                     }
                     append(lineText)
-                    addStyle(
-                        defaultTextStyle,
-                        lineStartPos - fp, //firstPos,
-                        lineFinishPos - fp //firstPos
-                    )
                     val toks = try {
                         getLineTokens(lineNum, lineStartPos, lineText)
                     } catch (t: Throwable) {
@@ -404,15 +403,16 @@ internal class EditorState(
                         emptyList()
                     }
                     for (tk in toks) {
-                        val offsetStart = (lineStartPos + tk.start).coerceIn(lineStartPos, lineFinishPos + 1)
-                        val offsetFinish = (lineStartPos + tk.finish).coerceIn(lineStartPos, lineFinishPos + 1)
-                        println("tok: [${tk.start}-${tk.finish}] => [$offsetStart-$offsetFinish]")
+                        val offsetStart = (viewLineStart + tk.start).coerceIn(viewLineStart, viewLineFinish)
+                        val offsetFinish = (viewLineFinish + tk.finish).coerceIn(viewLineStart, viewLineFinish)
+//                        println("tok: [${tk.start}-${tk.finish}] => [$offsetStart-$offsetFinish]")
                         addStyle(tk.style, offsetStart, offsetFinish)
                     }
                 }
             }
             val sel = inputTextValue.selection.toView()
             updateViewCursorPos()
+//            println(annotated.spanStyles.joinToString { "(${it.start}-${it.end})" })
             viewTextValue = TextFieldValue(annotatedString = annotated, selection = sel)  //inputTextValue.copy(annotatedString = annotated, selection = sel)
         }
     }
