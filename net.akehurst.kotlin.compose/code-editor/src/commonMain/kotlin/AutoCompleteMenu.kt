@@ -17,6 +17,7 @@
 package net.akehurst.kotlin.compose.editor
 
 import androidx.compose.foundation.*
+import androidx.compose.foundation.gestures.ScrollableState
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyListState
@@ -32,25 +33,39 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.round
+import kotlinx.coroutines.launch
+import net.akehurst.kotlin.compose.editor.api.AutocompleteFunction
+import net.akehurst.kotlin.compose.editor.api.AutocompleteItem
+import net.akehurst.kotlin.compose.editor.api.AutocompleteSuggestion
+
+fun String.fixLength(maxLen: Int) = when {
+    this.length < maxLen -> this
+    else -> this.substring(0, maxLen - 1) + "\u2026"
+}
 
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
 internal fun AutocompletePopup(
+    modifier: Modifier = Modifier,
     state: AutocompleteState
 ) {
     if (state.isVisible) {
         Surface(
             shadowElevation = 1.dp,
             border = BorderStroke(Dp.Hairline, MaterialTheme.colorScheme.onSurface),
-            modifier = Modifier
-                .offset { state.editorState.viewCursors[0].rect.bottomRight.round() }
-                .widthIn(min = 150.dp, max = 300.dp)
+            modifier = modifier
+                .offset { state.editorState.viewCursor.rect.bottomRight.round() }
                 .padding(vertical = 2.dp)
         ) {
-            Column {
+            Column(
+                modifier = Modifier
+                    .width(300.dp)
+                    .heightIn(min = 30.dp, max = 250.dp)
+
+            ) {
                 // List
                 LazyColumn(
-                    //state = state.lazyListState
+                    state = state.lazyListState
                 ) {
                     itemsIndexed(state.items) { idx, item ->
                         Row(
@@ -61,9 +76,11 @@ internal fun AutocompletePopup(
                                     onClick = { state.choose(item) },
                                 )
                         ) {
-                            Text(item.text)
-                            Spacer(Modifier.width(8.dp))
-                            Text(item.name)
+                            Text(item.text.fixLength(15))
+                            Spacer(Modifier.width(20.dp))
+                            item.name?.let {
+                                Text("(${it.fixLength(10)})")
+                            }
                         }
                     }
                 }
@@ -86,11 +103,13 @@ internal class AutocompleteState(
     val editorState: EditorState,
     val requestAutocompleteSuggestions: AutocompleteFunction
 ) {
-    //val lazyListState = LazyListState()
+    val lazyListState = LazyListState()
     var isVisible by mutableStateOf(false)
     var isLoading by mutableStateOf(true)
     var selectedIndex by mutableStateOf<Int>(-1)
     var items = mutableStateListOf<AutocompleteItem>()
+
+    //val scrollState by mutableStateOf(ScrollState(0))
 
     val selectedItem get() = items.getOrNull(selectedIndex)
 
@@ -101,21 +120,37 @@ internal class AutocompleteState(
             override fun provide(items: List<AutocompleteItem>) {
                 this@AutocompleteState.items.addAll(items)
                 isLoading = false
+                if (items.isNotEmpty()) {
+                    selectedIndex = 0
+                }
             }
         }
         requestAutocompleteSuggestions.invoke(editorState.inputSelection.start, editorState.inputText, result)
     }
 
+    fun scrollToSelected() {
+        editorState.scope?.launch {
+            lazyListState.scrollToItem(selectedIndex, -20)
+        }
+    }
+
     fun selectNext() {
         when {
-            selectedIndex < (items.size - 1) -> selectedIndex++
+            selectedIndex < (items.size - 1) -> {
+                selectedIndex++
+                scrollToSelected()
+            }
+
             else -> Unit
         }
     }
 
     fun selectPrevious() {
         when {
-            selectedIndex > 0 -> selectedIndex--
+            selectedIndex > 0 -> {
+                selectedIndex--
+                scrollToSelected()
+            }
             else -> Unit
         }
     }
@@ -125,7 +160,7 @@ internal class AutocompleteState(
         chooseSelected()
     }
 
-    fun isSelected(idx:Int): Boolean = selectedIndex == idx
+    fun isSelected(idx: Int): Boolean = selectedIndex == idx
 
     fun chooseSelected() {
         val textToInsert = this.selectedItem?.text ?: ""

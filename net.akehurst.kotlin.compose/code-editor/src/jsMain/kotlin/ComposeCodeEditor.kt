@@ -20,25 +20,30 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.ui.ExperimentalComposeUiApi
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.window.CanvasBasedWindow
+import net.akehurst.kotlin.compose.editor.api.*
 import org.jetbrains.skiko.wasm.onWasmReady
 import org.w3c.dom.Element
 import org.w3c.dom.HTMLCanvasElement
 import org.w3c.dom.HTMLScriptElement
 
+
+
 @OptIn(ExperimentalComposeUiApi::class)
 class ComposeCodeEditorJs(
     editorElement: Element,
     initialText: String = "",
-    var onTextChange: (String) -> Unit = {},
-    var getLineTokens: LineTokensFunction = { _, _, _ -> emptyList() },
-    var requestAutocompleteSuggestions: AutocompleteFunction = { _, _, _ -> },
-) {
+    override var onTextChange: (String) -> Unit = {},
+    override var getLineTokens: LineTokensFunction = { _, _, _ -> emptyList() },
+    override var requestAutocompleteSuggestions: AutocompleteFunction = { _, _, _ -> },
+) : ComposeCodeEditor {
+
     val script: HTMLScriptElement
     val canvas: HTMLCanvasElement
+
     private val editorState = EditorState(
         initialText = initialText,
-        getLineTokens = getLineTokens,
-        requestAutocompleteSuggestions = requestAutocompleteSuggestions
+        getLineTokens = { lineNumber, lineStartPosition, lineText -> getLineTokens.invoke(lineNumber, lineStartPosition, lineText) },
+        requestAutocompleteSuggestions = { position, text, result -> requestAutocompleteSuggestions.invoke(position, text, result) }
     )
 
     init {
@@ -55,14 +60,20 @@ class ComposeCodeEditorJs(
             ) {
                 CodeEditor(
                     modifier = Modifier.fillMaxSize(),
-                    onTextChange = onTextChange,
+                    onTextChange = { onTextChange.invoke(it) },
                     editorState = editorState
                 )
             }
         }
     }
 
-    fun destroy() {
+    override var text: String
+        get() = editorState.inputText
+        set(value) {
+            editorState.inputTextValue = editorState.inputTextValue.copy(text = value)
+        }
+
+    override fun destroy() {
         canvas.remove()
         script.remove()
     }

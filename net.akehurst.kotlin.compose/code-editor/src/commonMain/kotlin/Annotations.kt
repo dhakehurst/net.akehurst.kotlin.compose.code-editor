@@ -18,6 +18,7 @@ package net.akehurst.kotlin.compose.editor
 
 import androidx.compose.runtime.Stable
 import androidx.compose.runtime.mutableStateListOf
+import net.akehurst.kotlin.compose.editor.api.AutocompleteItem
 
 @Stable
 class AnnotationState {

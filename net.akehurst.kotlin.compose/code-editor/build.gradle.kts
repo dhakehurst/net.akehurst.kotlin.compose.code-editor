@@ -6,6 +6,8 @@ dependencies {
     commonMainImplementation(compose.ui)
     commonMainImplementation(compose.foundation)
     commonMainImplementation(compose.material3)
+
+    commonMainImplementation(project(":code-editor-api"))
 }
 
 compose {
