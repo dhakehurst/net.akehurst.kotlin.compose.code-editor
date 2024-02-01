@@ -1,5 +1,5 @@
 plugins {
-    id("org.jetbrains.compose") version "1.6.0-beta01"
+    id("org.jetbrains.compose")
 }
 
 dependencies {

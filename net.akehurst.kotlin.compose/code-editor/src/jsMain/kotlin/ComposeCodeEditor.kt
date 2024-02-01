@@ -68,7 +68,7 @@ class ComposeCodeEditorJs(
     }
 
     override var text: String
-        get() = editorState.inputText
+        get() = editorState.inputRawText
         set(value) {
             editorState.inputTextValue = editorState.inputTextValue.copy(text = value)
         }

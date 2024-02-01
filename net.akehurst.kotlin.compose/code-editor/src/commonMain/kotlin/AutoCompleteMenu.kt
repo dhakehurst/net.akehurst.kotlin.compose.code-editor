@@ -125,7 +125,7 @@ internal class AutocompleteState(
                 }
             }
         }
-        requestAutocompleteSuggestions.invoke(editorState.inputSelection.start, editorState.inputText, result)
+        requestAutocompleteSuggestions.invoke(editorState.inputSelection.start, editorState.inputRawText, result)
     }
 
     fun scrollToSelected() {

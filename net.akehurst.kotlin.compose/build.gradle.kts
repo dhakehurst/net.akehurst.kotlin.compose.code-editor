@@ -20,8 +20,9 @@ import java.io.File
 
 plugins {
     kotlin("multiplatform") version ("1.9.22") apply false
+    id("org.jetbrains.compose") version "1.6.0-beta01" apply false
     id("org.jetbrains.dokka") version ("1.9.10") apply false
-    id("com.github.gmazzo.buildconfig") version("4.1.2") apply false
+    id("com.github.gmazzo.buildconfig") version ("4.1.2") apply false
     id("nu.studer.credentials") version ("3.0")
 }
 val kotlin_languageVersion = org.jetbrains.kotlin.gradle.dsl.KotlinVersion.KOTLIN_1_9
@@ -52,7 +53,7 @@ subprojects {
 
     repositories {
         mavenLocal {
-            content{
+            content {
                 includeGroupByRegex("net\\.akehurst.+")
             }
         }
@@ -63,7 +64,7 @@ subprojects {
         val now = java.time.Instant.now()
         fun fBbuildStamp(): String = java.time.format.DateTimeFormatter.ISO_DATE_TIME.withZone(java.time.ZoneId.of("UTC")).format(now)
         fun fBuildDate(): String = java.time.format.DateTimeFormatter.ofPattern("yyyy-MMM-dd").withZone(java.time.ZoneId.of("UTC")).format(now)
-        fun fBuildTime(): String= java.time.format.DateTimeFormatter.ofPattern("HH:mm:ss z").withZone(java.time.ZoneId.of("UTC")).format(now)
+        fun fBuildTime(): String = java.time.format.DateTimeFormatter.ofPattern("HH:mm:ss z").withZone(java.time.ZoneId.of("UTC")).format(now)
 
         buildConfigField("String", "version", "\"${project.version}\"")
         buildConfigField("String", "buildStamp", "\"${fBbuildStamp()}\"")
