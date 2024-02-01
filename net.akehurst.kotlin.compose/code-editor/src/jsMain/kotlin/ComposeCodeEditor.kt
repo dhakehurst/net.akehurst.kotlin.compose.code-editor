@@ -42,6 +42,7 @@ class ComposeCodeEditorJs(
 
     private val editorState = EditorState(
         initialText = initialText,
+        onTextChange = { onTextChange.invoke(it) },
         getLineTokens = { lineNumber, lineStartPosition, lineText -> getLineTokens.invoke(lineNumber, lineStartPosition, lineText) },
         requestAutocompleteSuggestions = { position, text, result -> requestAutocompleteSuggestions.invoke(position, text, result) }
     )
@@ -60,7 +61,6 @@ class ComposeCodeEditorJs(
             ) {
                 CodeEditor(
                     modifier = Modifier.fillMaxSize(),
-                    onTextChange = { onTextChange.invoke(it) },
                     editorState = editorState
                 )
             }
@@ -70,7 +70,7 @@ class ComposeCodeEditorJs(
     override var text: String
         get() = editorState.inputRawText
         set(value) {
-            editorState.inputTextValue = editorState.inputTextValue.copy(text = value)
+            editorState.inputRawText =  value
         }
 
     override fun destroy() {
