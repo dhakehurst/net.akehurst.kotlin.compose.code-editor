@@ -60,7 +60,7 @@ data class CursorDetails(
     val inView: Boolean
 ) {
     //var inView = true
-    var position = 0
+//    var position = 0
     //var rect = Rect.Zero
 
     //val top get() = rect.topCenter
@@ -335,6 +335,8 @@ class EditorState(
 
     internal val inputScrollerPosition by mutableStateOf(TextFieldScrollerPosition(Orientation.Vertical))
 
+    var cachedLineHeight = 30f
+
     var inputTextValue by mutableStateOf(TextFieldValue(initialText))
     var inputTextLayoutResult by mutableStateOf(null as TextLayoutResult?)
     val inputLaidOutText by derivedStateOf {
@@ -413,9 +415,15 @@ class EditorState(
         TextFieldValue(annotatedString = annotated, selection = viewSelection)
     }
 
-    var viewTextLayoutResult by mutableStateOf(null as TextLayoutResult?)
+    var viewTextLayoutResult by  mutableStateOf(null as TextLayoutResult?)
     val viewCursorRect by derivedStateOf {
-        val pos = viewSelection.start //viewCursors[0].position
+        //val pos = viewSelection.start //viewCursor.position
+        val selStart = inputTextValue.selection.start
+        val pos = when {
+            selStart < viewFirstTextIndex -> 0
+            selStart > viewLastTextIndex -> viewLastTextIndex - viewFirstTextIndex
+            else -> selStart - viewFirstTextIndex
+        }
         val p = min(pos, viewTextLayoutResult?.layoutInput?.text?.length?:0)
 
         val cr = viewTextLayoutResult?.getCursorRect(p) ?: Rect.Zero
@@ -424,13 +432,13 @@ class EditorState(
         // cursor is invisible on JS because cursor rect has 0 height, due to lineMetric issues
         // workaround, figure out position myself
         // left and right of original seem to be corect
-        val ln = viewLineMetrics.lineForPosition(viewSelection.start)
-        val lineHeight = when {
+        val ln = viewLineMetrics.lineForPosition(pos)
+        cachedLineHeight = when {
             0f != cr.height -> cr.height //assume height is correct when text is empty, it seems so
-            else -> viewCursor.rect.height // use last height
+            else -> cachedLineHeight // use last height
         }
-        val top = ln * lineHeight
-        val bottom = top + lineHeight
+        val top = ln * cachedLineHeight
+        val bottom = top + cachedLineHeight
         Rect(cr.left, top, cr.right, bottom)
     }
 
@@ -561,13 +569,13 @@ class EditorState(
 //    }
 
     fun insertText(text: String) {
-        val pos = viewCursor.position
+        val pos = viewSelection.start
         val before = this.inputText.substring(0, pos)
         val after = this.inputText.substring(pos)
         val newText = before + text + after
         val sel = inputTextValue.selection
         val newSel = TextRange(sel.start + text.length)
         this.inputTextValue = this.inputTextValue.copy(text = newText, selection = newSel)
-        viewCursor.position = viewCursor.position + text.length
+        //viewCursor.position = viewCursor.position + text.length
     }
 }
