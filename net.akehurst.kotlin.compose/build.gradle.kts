@@ -31,6 +31,15 @@ val jvmTargetVersion = org.jetbrains.kotlin.gradle.dsl.JvmTarget.JVM_1_8
 
 allprojects {
 
+    repositories {
+        mavenLocal {
+            content {
+                includeGroupByRegex("net\\.akehurst.+")
+            }
+        }
+        mavenCentral()
+    }
+
     val version_project: String by project
     val group_project = rootProject.name
 
@@ -51,14 +60,6 @@ subprojects {
     apply(plugin = "com.github.gmazzo.buildconfig")
     apply(plugin = "org.jetbrains.kotlin.multiplatform")
 
-    repositories {
-        mavenLocal {
-            content {
-                includeGroupByRegex("net\\.akehurst.+")
-            }
-        }
-        mavenCentral()
-    }
 
     configure<BuildConfigExtension> {
         val now = java.time.Instant.now()
@@ -93,6 +94,13 @@ subprojects {
             binaries.library()
             nodejs()
             browser()
+        }
+
+        // compose does not support native targets !
+
+        @OptIn(org.jetbrains.kotlin.gradle.targets.js.dsl.ExperimentalWasmDsl::class)
+        wasmJs() {
+            binaries.library()
         }
     }
 
