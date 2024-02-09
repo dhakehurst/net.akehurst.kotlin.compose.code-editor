@@ -39,8 +39,6 @@ import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.input.key.*
-import androidx.compose.ui.platform.ClipboardManager
-import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.text.*
 import androidx.compose.ui.text.input.OffsetMapping
 import androidx.compose.ui.text.input.TextFieldValue
@@ -172,7 +170,7 @@ fun CodeEditor(
     val scope = rememberCoroutineScope().also {
         editorState.scope = it
         // editorState.currentRecomposeScope = currentRecomposeScope
-        editorState.clipboardManager = LocalClipboardManager.current
+        //editorState.clipboardManager = LocalClipboardManager.current
     }
     val state by remember { mutableStateOf(editorState) }
 
@@ -279,7 +277,8 @@ fun CodeEditor(
                             }
                         }
                     }
-                    .onPreviewKeyEvent { ev -> editorState.handlePreviewKeyEvent(ev) },
+                    .onPreviewKeyEvent { ev -> editorState.handlePreviewKeyEvent(ev) }
+                    .onKeyEvent { ev -> editorState.handleKeyEvent(ev)  },
                 textScrollerPosition = state.inputScrollerPosition,
                 value = state.inputTextValue,
                 onValueChange = state::onValueChange,
@@ -310,7 +309,7 @@ class EditorState(
 
     var scope: CoroutineScope? = null
     var currentRecomposeScope: RecomposeScope? = null
-    var clipboardManager: ClipboardManager? = null
+    var clipboardManager: MyClipboardManager? = MyClipboardManager
 
     internal val inputScrollerPosition by mutableStateOf(TextFieldScrollerPosition(Orientation.Vertical))
 
@@ -511,7 +510,7 @@ class EditorState(
         val after = this.inputRawText.substring(pos)
         val newText = before + text + after
         val sel = inputTextValue.selection
-        val newSel = TextRange(sel.start + text.length)
+        this.inputSelection = TextRange(sel.start + text.length)
         this.inputRawText = newText
         viewCursor.position = viewCursor.position + text.length
         //refresh()
@@ -519,12 +518,20 @@ class EditorState(
 
     val KeyEvent.isCtrlSpace
         get() = (key == Key.Spacebar || utf16CodePoint == ' '.toInt()) && isCtrlPressed
+
     val KeyEvent.isCtrlV
         get() = (key == Key.V || utf16CodePoint == 'v'.toInt()) && isCtrlPressed
+    val KeyEvent.isCmdV
+        get() = (key == Key.V || utf16CodePoint == 'v'.toInt()) && isMetaPressed
+
     val KeyEvent.isCtrlC
-        get() = (key == Key.V || utf16CodePoint == 'c'.toInt()) && isCtrlPressed
+        get() = (key == Key.C || utf16CodePoint == 'c'.toInt()) && isCtrlPressed
     val KeyEvent.isCmdC
-        get() = (key == Key.V || utf16CodePoint == 'c'.toInt()) && isMetaPressed
+        get() = (key == Key.C || utf16CodePoint == 'c'.toInt()) && isMetaPressed
+
+    val KeyEvent.isCopy get() = isCmdC || isCtrlC
+    val KeyEvent.isPaste get() = isCmdV || isCtrlV
+
 
     fun handlePreviewKeyEvent(ev: KeyEvent): Boolean {
         //println("$ev ${ev.key} ${ev.key.keyCode}")
@@ -555,21 +562,23 @@ class EditorState(
                 }
 
                 else -> when {
-                    ev.isCtrlPressed -> when {
+                    ev.isCtrlPressed || ev.isMetaPressed -> when {
                         ev.isCtrlSpace -> {
                             // autocomplete
                             scope?.launch { autocompleteState.open() }
                             true
                         }
 
-                        ev.isCmdC || ev.isCmdC -> {
+                        ev.isCopy -> {
                             val selectedText = inputAnnotatedText.subSequence(inputSelection)
                             clipboardManager?.setText(selectedText)
                             true
                         }
 
-                        ev.isCtrlV -> {
-                            clipboardManager?.getText()?.text?.let { insertText(it) }
+                        ev.isPaste -> {
+                            scope?.launch {
+                                clipboardManager?.getText()?.text?.let { insertText(it) }
+                            }
                             true
                         }
 
@@ -580,16 +589,31 @@ class EditorState(
                 }
             }
 
+            // KeyUp | KeyPressed
             else -> when {
                 ev.isCtrlSpace -> true
-                ev.isCtrlC -> true
+                ev.isCopy -> true
+                ev.isPaste -> true
+                else -> false
+            }
+        }
+    }
+
+    fun handleKeyEvent(ev: KeyEvent): Boolean {
+        //println("$ev ${ev.key} ${ev.key.keyCode}")
+        return when (ev.type) {
+            // KeyDown | KeyUp | KeyPressed
+            else -> when {
+                ev.isCtrlSpace -> true
+                ev.isCopy -> true
+                ev.isPaste -> true
                 else -> false
             }
         }
     }
 
     fun onValueChange(textFieldValue: TextFieldValue) {
-        println("onValueChange")
+        //println("onValueChange")
         if (textFieldValue.text != inputRawText) { // has text really changed !
             inputRawText = textFieldValue.text
             onTextChange(textFieldValue.text)
@@ -601,19 +625,19 @@ class EditorState(
     }
 
     fun onScroll(textLayoutResult: TextLayoutResult?) {
-        println("onScroll")
+       // println("onScroll")
         if (textLayoutResult != null) {
             updateViewDetails(textLayoutResult)
         }
     }
 
     fun onTextLayout(textLayoutResult: TextLayoutResult) {
-        println("onTextLayout")
+       // println("onTextLayout")
         updateViewDetails(textLayoutResult)
     }
 
     fun visualTransformation(annotatedString: AnnotatedString): TransformedText {
-        println("visualTransformation")
+       // println("visualTransformation")
         return TransformedText(annotatedString, OffsetMapping.Identity)
     }
 
