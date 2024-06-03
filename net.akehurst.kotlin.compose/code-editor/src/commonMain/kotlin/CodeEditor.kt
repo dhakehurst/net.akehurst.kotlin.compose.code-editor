@@ -250,12 +250,12 @@ fun CodeEditor(
 //                    backgroundColor = Color.Transparent
 //                )
 //            ) {
-//            BasicTextField2(
-//                cursorBrush = SolidColor(Color.Red),
-//                state = editorState.textFieldState,
-//            )
+            BasicTextField2(
+                cursorBrush = SolidColor(Color.Red),
+                state = editorState.textFieldState,
+            )
 
-            MyCoreTextField(
+/*            MyCoreTextField(
                 cursorBrush = SolidColor(Color.Red),
 //                    textStyle = TextStyle(color = Color.Transparent),
                 modifier = Modifier
@@ -285,7 +285,7 @@ fun CodeEditor(
                 visualTransformation = state::visualTransformation,
                 onTextLayout = state::onTextLayout,
                 onScroll = state::onScroll,
-            )
+            )*/
 //            }
 
             // for autocomplete popup
@@ -309,7 +309,7 @@ class EditorState(
 
     var scope: CoroutineScope? = null
     var currentRecomposeScope: RecomposeScope? = null
-    var clipboardManager: MyClipboardManager? = MyClipboardManager
+    //var clipboardManager: MyClipboardManager? = MyClipboardManager
 
     internal val inputScrollerPosition by mutableStateOf(TextFieldScrollerPosition(Orientation.Vertical))
 
@@ -571,13 +571,13 @@ class EditorState(
 
                         ev.isCopy -> {
                             val selectedText = inputAnnotatedText.subSequence(inputSelection)
-                            clipboardManager?.setText(selectedText)
+//                            clipboardManager?.setText(selectedText)
                             true
                         }
 
                         ev.isPaste -> {
                             scope?.launch {
-                                clipboardManager?.getText()?.text?.let { insertText(it) }
+//                                clipboardManager?.getText()?.text?.let { insertText(it) }
                             }
                             true
                         }
