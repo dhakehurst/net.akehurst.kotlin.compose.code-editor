@@ -1,6 +1,6 @@
 plugins {
-    id("org.jetbrains.compose")
-    id("org.jetbrains.kotlin.plugin.compose")
+    alias(libs.plugins.compose)
+    alias(libs.plugins.kotlin.compose)
 }
 
 dependencies {
@@ -9,6 +9,9 @@ dependencies {
     commonMainImplementation(compose.material3)
 
     commonMainImplementation(project(":code-editor-api"))
+
+
+    jvm8TestImplementation(compose.desktop.currentOs)
 }
 
 compose {

@@ -1,3 +1,4 @@
+/*
 package net.akehurst.kotlin.compose.editor
 
 import androidx.compose.ui.text.AnnotatedString
@@ -31,3 +32,5 @@ actual object MyClipboardManager {
     }
 
 }
+
+ */

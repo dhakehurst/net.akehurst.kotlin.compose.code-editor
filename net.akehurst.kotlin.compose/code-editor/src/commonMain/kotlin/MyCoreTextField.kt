@@ -16,7 +16,8 @@
  * Modified by Dr. D.H. Akehurst adding the onScoll argument
  * as also done by Alex/n34t0 in [https://github.com/n34t0/compose-code-editor]
  *
- */
+ *//*
+
 
 //https://github.com/JetBrains/kotlin/blob/d39a7e59a75a464c656af6bed9718c427e91f236/compiler/frontend/src/org/jetbrains/kotlin/diagnostics/rendering/DefaultErrorMessages.java
 @file:Suppress("UNUSED", "INVISIBLE_MEMBER", "INVISIBLE_REFERENCE", "EQUALS_MISSING", "CANNOT_OVERRIDE_INVISIBLE_MEMBER")
@@ -58,6 +59,7 @@ import kotlinx.coroutines.launch
 import kotlin.math.max
 import kotlin.math.roundToInt
 
+*/
 /**
  * Base composable that enables users to edit text via hardware or software keyboard.
  *
@@ -121,6 +123,8 @@ import kotlin.math.roundToInt
  * parameter "innerTextField" to the decorationBox lambda you provide. You must call
  * innerTextField exactly once.
  */
+/*
+
 @Composable
 @OptIn(InternalFoundationTextApi::class, ExperimentalFoundationApi::class)
 internal fun MyCoreTextField(
@@ -526,7 +530,9 @@ internal fun MyCoreTextField(
                 onImeActionPerformed = state.onImeActionPerformed
             )
         }
-        onDispose { /* do nothing */ }
+        onDispose { */
+/* do nothing *//*
+ }
     }
 
     val textKeyInputModifier =
@@ -686,10 +692,12 @@ private fun CoreTextFieldRootBox(
     }
 }
 
+*/
 /**
  * Modifier to intercept back key presses, when supported by the platform, and deselect selected
  * text and clear selection popups.
- */
+ *//*
+
 private fun Modifier.previewKeyEventToDeselectOnBack(
     state: TextFieldState,
     manager: TextFieldSelectionManager
@@ -711,22 +719,28 @@ internal class TextFieldState(
     val processor = EditProcessor()
     var inputSession: TextInputSession? = null
 
-    /**
+    */
+/**
      * This should be a state as every time we update the value we need to redraw it.
      * state observation during onDraw callback will make it work.
-     */
+     *//*
+
     var hasFocus by mutableStateOf(false)
 
-    /**
+    */
+/**
      * Set to a non-zero value for single line TextFields in order to prevent text cuts.
-     */
+     *//*
+
     var minHeightForSingleLineField by mutableStateOf(0.dp)
 
-    /**
+    */
+/**
      * The last layout coordinates for the inner text field LayoutNode, used by selection and
      * notifyFocusedRect. Since this layoutCoordinates only used for relative position calculation,
      * we are guarding ourselves from using it when it's not attached.
-     */
+     *//*
+
     private var _layoutCoordinates: LayoutCoordinates? = null
     var layoutCoordinates: LayoutCoordinates?
         get() = _layoutCoordinates?.takeIf { it.isAttached }
@@ -734,7 +748,8 @@ internal class TextFieldState(
             _layoutCoordinates = value
         }
 
-    /**
+    */
+/**
      * You should be using proxy type [TextLayoutResultProxy] if you need to translate touch
      * offset into text's coordinate system. For example, if you add a gesture on top of the
      * decoration box and want to know the character in text for the given touch offset on
@@ -744,7 +759,8 @@ internal class TextFieldState(
      * with the text directly, and not the decoration box. For example, cursor modifier gets
      * position using the [TextFieldValue.selection] value which corresponds to the text directly,
      * and therefore does not require the translation.
-     */
+     *//*
+
     private val layoutResultState: MutableState<TextLayoutResultProxy?> = mutableStateOf(null)
     var layoutResult: TextLayoutResultProxy?
         get() = layoutResultState.value
@@ -753,17 +769,20 @@ internal class TextFieldState(
             isLayoutResultStale = false
         }
 
-    /**
+    */
+/**
      * [textDelegate] keeps a reference to the visually transformed text that is visible to the
      * user. TextFieldState needs to have access to the underlying value that is not transformed
      * while making comparisons that test whether the user input actually changed.
      *
      * This field contains the real value that is passed by the user before it was visually
      * transformed.
-     */
+     *//*
+
     var untransformedText: AnnotatedString? = null
 
-    /**
+    */
+/**
      * The gesture detector state, to indicate whether current state is selection, cursor
      * or editing.
      *
@@ -779,44 +798,55 @@ internal class TextFieldState(
      * To enter the cursor state, tap anywhere within the TextField.(The TextField will stay in the
      * edit state if the current text is empty.) In this mode, finger movement on the screen
      * moves the cursor.
-     */
+     *//*
+
     var handleState by mutableStateOf(HandleState.None)
 
-    /**
+    */
+/**
      * A flag to check if the floating toolbar should show.
      *
      * This state is meant to represent the floating toolbar status regardless of if all touch
      * behaviors are disabled (like if the user is using a mouse). This is so that when touch
      * behaviors are re-enabled, the toolbar status will still reflect whether it should be shown
      * at that point.
-     */
+     *//*
+
     var showFloatingToolbar by mutableStateOf(false)
 
-    /**
+    */
+/**
      * True if the position of the selection start handle is within a visible part of the window
      * (i.e. not scrolled out of view) and the handle should be drawn.
-     */
+     *//*
+
     var showSelectionHandleStart by mutableStateOf(false)
 
-    /**
+    */
+/**
      * True if the position of the selection end handle is within a visible part of the window
      * (i.e. not scrolled out of view) and the handle should be drawn.
-     */
+     *//*
+
     var showSelectionHandleEnd by mutableStateOf(false)
 
-    /**
+    */
+/**
      * True if the position of the cursor is within a visible part of the window (i.e. not scrolled
      * out of view) and the handle should be drawn.
-     */
+     *//*
+
     var showCursorHandle by mutableStateOf(false)
 
-    /**
+    */
+/**
      * TextFieldState holds both TextDelegate and layout result. However, these two values are not
      * updated at the same time. TextDelegate is updated during composition according to new
      * arguments while layoutResult is updated during layout phase. Therefore, [layoutResult] might
      * not indicate the result of [textDelegate] at a given time during composition. This variable
      * indicates whether layout result is lacking behind the latest TextDelegate.
-     */
+     *//*
+
     var isLayoutResultStale: Boolean = true
         private set
 
@@ -825,11 +855,13 @@ internal class TextFieldState(
     private val keyboardActionRunner: KeyboardActionRunner =
         KeyboardActionRunner(keyboardController)
 
-    /**
+    */
+/**
      * DO NOT USE, use [onValueChange] instead. This is original callback provided to the TextField.
      * In order the CoreTextField to work, the recompose.invalidate() has to be called when we call
      * the callback and [onValueChange] is a wrapper that mainly does that.
-     */
+     *//*
+
     private var onValueChangeOriginal: (TextFieldValue) -> Unit = {}
 
     val onValueChange: (TextFieldValue) -> Unit = {
@@ -845,7 +877,9 @@ internal class TextFieldState(
         keyboardActionRunner.runAction(imeAction)
     }
 
-    /** The paint used to draw highlight background for selected text. */
+    */
+/** The paint used to draw highlight background for selected text. *//*
+
     val selectionPaint: Paint = Paint()
 
     fun update(
@@ -1010,4 +1044,4 @@ fun MultiParagraph.MygetLineForVerticalPosition(vertical: Float): Int {
             }
         }
     }
-}
+}*/

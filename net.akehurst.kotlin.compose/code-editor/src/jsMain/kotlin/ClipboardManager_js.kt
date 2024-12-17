@@ -1,4 +1,6 @@
+/*
 package net.akehurst.kotlin.compose.editor
+
 
 import androidx.compose.ui.text.AnnotatedString
 import kotlinx.browser.window
@@ -25,3 +27,5 @@ actual object MyClipboardManager {
     }
 
 }
+
+ */

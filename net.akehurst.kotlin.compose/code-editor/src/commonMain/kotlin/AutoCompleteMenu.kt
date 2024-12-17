@@ -33,6 +33,7 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.round
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.launch
 import net.akehurst.kotlin.compose.editor.api.AutocompleteFunction
 import net.akehurst.kotlin.compose.editor.api.AutocompleteItem
@@ -54,7 +55,7 @@ internal fun AutocompletePopup(
             shadowElevation = 1.dp,
             border = BorderStroke(Dp.Hairline, MaterialTheme.colorScheme.onSurface),
             modifier = modifier
-                .offset { state.editorState.viewCursor.rect.bottomRight.round() }
+                .offset { state.getCursor().rect.bottomRight.round() }
                 .padding(vertical = 2.dp)
         ) {
             Column(
@@ -100,9 +101,15 @@ internal fun AutocompletePopup(
 
 @Stable
 internal class AutocompleteState(
-    val editorState: EditorState,
+    //val editorState: EditorState,
+    val getText: () -> CharSequence,
+    val getCursorPosition: () -> Int,
+    val getCursor: () -> CursorDetails,
+    val insertText: (String) -> Unit,
     val requestAutocompleteSuggestions: AutocompleteFunction
 ) {
+    var scope: CoroutineScope? = null
+
     val lazyListState = LazyListState()
     var isVisible by mutableStateOf(false)
     var isLoading by mutableStateOf(true)
@@ -125,11 +132,11 @@ internal class AutocompleteState(
                 }
             }
         }
-        requestAutocompleteSuggestions.invoke(editorState.inputSelection.start, editorState.inputRawText, result)
+        requestAutocompleteSuggestions.invoke(getCursorPosition(), getText(), result)
     }
 
     fun scrollToSelected() {
-        editorState.scope?.launch {
+        scope?.launch {
             lazyListState.scrollToItem(selectedIndex, -20)
         }
     }
@@ -164,7 +171,7 @@ internal class AutocompleteState(
 
     fun chooseSelected() {
         val textToInsert = this.selectedItem?.text ?: ""
-        editorState.insertText(textToInsert)
+        insertText(textToInsert)
         close()
     }
 

@@ -1,4 +1,6 @@
+/*
 package net.akehurst.kotlin.compose.editor
+
 
 import androidx.compose.ui.text.AnnotatedString
 import org.jetbrains.skiko.SkikoPlatformKeyboardEvent
@@ -23,3 +25,5 @@ actual object MyClipboardManager  {
         TODO()
     }
 }
+
+ */

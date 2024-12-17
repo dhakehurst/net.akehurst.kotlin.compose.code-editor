@@ -1,4 +1,8 @@
-val version_compose:String by project
+plugins {
+    alias(libs.plugins.compose)
+    alias(libs.plugins.kotlin.compose)
+}
+
 dependencies {
-    commonMainApi("org.jetbrains.compose.ui:ui-text:$version_compose")
+    commonMainApi(compose.ui)
 }

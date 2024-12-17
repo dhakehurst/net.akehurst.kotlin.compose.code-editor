@@ -19,7 +19,7 @@ package net.akehurst.kotlin.compose.editor.api
 import androidx.compose.ui.text.SpanStyle
 
 typealias LineTokensFunction = ((lineNumber: Int, lineStartPosition: Int, lineText: String) -> List<EditorLineToken>)
-typealias AutocompleteFunction = suspend (position: Int, text: String, result: AutocompleteSuggestion) -> Unit
+typealias AutocompleteFunction = suspend (position: Int, text: CharSequence, result: AutocompleteSuggestion) -> Unit
 
 interface ComposeCodeEditor {
     var text: String

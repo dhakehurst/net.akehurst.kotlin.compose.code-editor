@@ -15,8 +15,9 @@ import kotlinx.coroutines.launch
 //expect fun SkikoPlatformKeyboardEvent.myConsume()
 
 // getText Currently not supported by kotlin-compose on JS
+/*
 expect object MyClipboardManager {
     fun setText(annotatedString: AnnotatedString)
     suspend fun getText(): AnnotatedString?
     fun hasText(): Boolean
-}
+}*/

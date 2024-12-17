@@ -26,11 +26,12 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.layout.RowScopeInstance.weight
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
-import androidx.compose.foundation.text.MyCoreTextField
-import androidx.compose.foundation.text.MygetLineForVerticalPosition
+import androidx.compose.foundation.text.BasicTextField
+//import androidx.compose.foundation.text.MyCoreTextField2
+import androidx.compose.foundation.text.CoreTextField
 import androidx.compose.foundation.text.TextFieldScrollerPosition
-import androidx.compose.foundation.text.TextFieldState
-import androidx.compose.foundation.text2.BasicTextField2
+import androidx.compose.foundation.text.selection.LocalTextSelectionColors
+import androidx.compose.foundation.text.selection.TextSelectionColors
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
@@ -169,6 +170,7 @@ fun CodeEditor(
 
     val scope = rememberCoroutineScope().also {
         editorState.scope = it
+        editorState.autocompleteState.scope = it
         // editorState.currentRecomposeScope = currentRecomposeScope
         //editorState.clipboardManager = LocalClipboardManager.current
     }
@@ -199,11 +201,13 @@ fun CodeEditor(
                     backgroundColor = Color.Red
                 )
             ) {
+
                 // Visible Viewport
                 // A CoreTextField that displays the styled text
                 // just the subsection of text that is visible is formatted
                 // The 'input' CoreTextField is transparent and sits on top of this.
-                MyCoreTextField(
+
+                CoreTextField(
                     readOnly = false,
                     enabled = false,
                     value = state.viewTextValue,
@@ -212,12 +216,12 @@ fun CodeEditor(
                         // state.viewTextValue = it
                     },
                     onTextLayout = { },
-                    onScroll = {
-                        if (null != it) {
-                            state.viewLineMetrics.update(it.layoutInput.text.text)
-                            state.updateViewCursorRect(it)
-                        }
-                    },
+                    // onScroll = {
+                    //     if (null != it) {
+                    //         //state.viewLineMetrics.update(it.layoutInput.text.text)
+                    //         state.updateViewCursorRect(it)
+                    //     }
+                    //  },
                     modifier = Modifier
                         //.fillMaxSize()
                         .matchParentSize()
@@ -241,52 +245,51 @@ fun CodeEditor(
 */
             // The input CoreTextField
             // sits on top receives user interactions
-            // and contains the whole text - with no syling
+            // and contains the whole text - with no styling
             // Transparent
-//            CompositionLocalProvider(
-//                // make selections transparent in the in
-//                LocalTextSelectionColors provides TextSelectionColors(
-//                    handleColor = LocalTextSelectionColors.current.handleColor,
-//                    backgroundColor = Color.Transparent
-//                )
-//            ) {
-            BasicTextField2(
-                cursorBrush = SolidColor(Color.Red),
-                state = editorState.textFieldState,
-            )
-
-/*            MyCoreTextField(
-                cursorBrush = SolidColor(Color.Red),
-//                    textStyle = TextStyle(color = Color.Transparent),
-                modifier = Modifier
-                    .matchParentSize()
-                    //.fillMaxSize()
-                    //.padding(5.dp,5.dp)
-                    .drawWithContent {
-                        drawContent()
-                        // draw the cursors
-                        // (can't see how to make the actual cursor visible unless the control has focus)
-                        state.viewCursor.let {
-                            if (it.inView) {
-                                drawLine(
-                                    strokeWidth = 3f,
-                                    brush = it.brush,
-                                    start = it.rect.topCenter,
-                                    end = it.rect.bottomCenter
-                                )
+            CompositionLocalProvider(
+                // make selections transparent in the in
+                LocalTextSelectionColors provides TextSelectionColors(
+                    handleColor = LocalTextSelectionColors.current.handleColor,
+                    backgroundColor = Color.Red
+                )
+            ) {
+                CoreTextField(
+                    value = state.inputTextValue,
+                    onValueChange = state::onValueChange,
+                    //                    textStyle = TextStyle(color = Color.Transparent),
+                    modifier = Modifier
+                        .matchParentSize()
+                        //.fillMaxSize()
+                        //.padding(5.dp,5.dp)
+                        .drawWithContent {
+                            drawContent()
+                            // draw the cursors
+                            // (can't see how to make the actual cursor visible unless the control has focus)
+                            state.viewCursor.let {
+                                if (it.inView) {
+                                    drawLine(
+                                        strokeWidth = 3f,
+                                        brush = it.brush,
+                                        start = it.rect.topCenter,
+                                        end = it.rect.bottomCenter
+                                    )
+                                }
                             }
                         }
-                    }
-                    .onPreviewKeyEvent { ev -> editorState.handlePreviewKeyEvent(ev) }
-                    .onKeyEvent { ev -> editorState.handleKeyEvent(ev)  },
-                textScrollerPosition = state.inputScrollerPosition,
-                value = state.inputTextValue,
-                onValueChange = state::onValueChange,
-                visualTransformation = state::visualTransformation,
-                onTextLayout = state::onTextLayout,
-                onScroll = state::onScroll,
-            )*/
-//            }
+                        .onPreviewKeyEvent { ev -> editorState.handlePreviewKeyEvent(ev) }
+                        .onKeyEvent { ev -> editorState.handleKeyEvent(ev) },
+                    textScrollerPosition = state.inputScrollerPosition,
+//                    visualTransformation = state::visualTransformation,
+                    onTextLayout = state::onTextLayout,
+                    //    onScroll = state::onScroll,
+                    cursorBrush = SolidColor(Color.Red),
+                )
+            }
+
+            LaunchedEffect(state.inputScrollerPosition) {
+                snapshotFlow { state.inputScrollerPosition.offset }.collect { state.onScroll() }
+            }
 
             // for autocomplete popup
             AutocompletePopup(
@@ -326,13 +329,21 @@ class EditorState(
         TextFieldValue(annotatedString = inputAnnotatedText, selection = inputSelection)
     }
 
-    //    var viewTextValue by mutableStateOf(TextFieldValue(""))
+    //var viewTextValue by mutableStateOf(TextFieldValue(""))
     var viewFirstLine by mutableStateOf(0)
     var viewLastLine by mutableStateOf(0)
     var viewFirstLineStartIndex by mutableStateOf(0)
     var viewLastLineFinishIndex by mutableStateOf(0)
     val viewCursor by mutableStateOf(CursorDetails(SolidColor(Color.Red)))
-    internal val autocompleteState by mutableStateOf(AutocompleteState(this, requestAutocompleteSuggestions))
+    internal val autocompleteState by mutableStateOf(
+        AutocompleteState(
+            { this.inputRawText },
+            { this.inputSelection.start },
+            { this.viewCursor },
+            { this.insertText(it) },
+            requestAutocompleteSuggestions
+        )
+    )
     val autocompleteOffset by mutableStateOf(IntOffset(-1, -1))
 
 //    val viewSelection: TextRange
@@ -414,8 +425,10 @@ class EditorState(
         //inputLineMetrics.update(newText)
         val st = inputScrollerPosition.offset
         val len = inputScrollerPosition.viewportSize
-        val firstLine = textLayoutResult.MygetLineForVerticalPosition(st)
-        val lastLine = textLayoutResult.MygetLineForVerticalPosition(st + len)
+        //val firstLine = textLayoutResult.MygetLineForVerticalPosition(st)
+        //val lastLine = textLayoutResult.MygetLineForVerticalPosition(st + len)
+        val firstLine = textLayoutResult.getLineForVerticalPosition(st)
+        val lastLine = textLayoutResult.getLineForVerticalPosition(st + len)
         val (fp, lp) = inputLineMetrics.viewEnds(firstLine, lastLine)
         viewFirstLine = firstLine
         viewLastLine = lastLine
@@ -501,7 +514,7 @@ class EditorState(
 
     fun setNewText(text: String) {
         this.inputRawText = text
-        viewCursor.position =0
+        viewCursor.position = 0
     }
 
     fun insertText(text: String) {
@@ -517,21 +530,21 @@ class EditorState(
     }
 
     val KeyEvent.isCtrlSpace
-        get() = (key == Key.Spacebar || utf16CodePoint == ' '.toInt()) && isCtrlPressed
-
+        get() = (key == Key.Spacebar || utf16CodePoint == ' '.code) && isCtrlPressed
+/*
     val KeyEvent.isCtrlV
-        get() = (key == Key.V || utf16CodePoint == 'v'.toInt()) && isCtrlPressed
+        get() = (key == Key.V || utf16CodePoint == 'v'.code) && isCtrlPressed
     val KeyEvent.isCmdV
-        get() = (key == Key.V || utf16CodePoint == 'v'.toInt()) && isMetaPressed
+        get() = (key == Key.V || utf16CodePoint == 'v'.code) && isMetaPressed
 
     val KeyEvent.isCtrlC
-        get() = (key == Key.C || utf16CodePoint == 'c'.toInt()) && isCtrlPressed
+        get() = (key == Key.C || utf16CodePoint == 'c'.code) && isCtrlPressed
     val KeyEvent.isCmdC
-        get() = (key == Key.C || utf16CodePoint == 'c'.toInt()) && isMetaPressed
+        get() = (key == Key.C || utf16CodePoint == 'c'.code) && isMetaPressed
 
     val KeyEvent.isCopy get() = isCmdC || isCtrlC
     val KeyEvent.isPaste get() = isCmdV || isCtrlV
-
+*/
 
     fun handlePreviewKeyEvent(ev: KeyEvent): Boolean {
         //println("$ev ${ev.key} ${ev.key.keyCode}")
@@ -568,7 +581,7 @@ class EditorState(
                             scope?.launch { autocompleteState.open() }
                             true
                         }
-
+/*
                         ev.isCopy -> {
                             val selectedText = inputAnnotatedText.subSequence(inputSelection)
 //                            clipboardManager?.setText(selectedText)
@@ -581,7 +594,7 @@ class EditorState(
                             }
                             true
                         }
-
+*/
                         else -> false
                     }
 
@@ -592,8 +605,8 @@ class EditorState(
             // KeyUp | KeyPressed
             else -> when {
                 ev.isCtrlSpace -> true
-                ev.isCopy -> true
-                ev.isPaste -> true
+ //               ev.isCopy -> true
+ //               ev.isPaste -> true
                 else -> false
             }
         }
@@ -605,8 +618,8 @@ class EditorState(
             // KeyDown | KeyUp | KeyPressed
             else -> when {
                 ev.isCtrlSpace -> true
-                ev.isCopy -> true
-                ev.isPaste -> true
+ //               ev.isCopy -> true
+//                ev.isPaste -> true
                 else -> false
             }
         }
@@ -625,24 +638,23 @@ class EditorState(
     }
 
     fun onScroll(textLayoutResult: TextLayoutResult?) {
-       // println("onScroll")
+        // println("onScroll")
         if (textLayoutResult != null) {
             updateViewDetails(textLayoutResult)
         }
     }
 
     fun onTextLayout(textLayoutResult: TextLayoutResult) {
-       // println("onTextLayout")
+        // println("onTextLayout")
         updateViewDetails(textLayoutResult)
     }
 
     fun visualTransformation(annotatedString: AnnotatedString): TransformedText {
-       // println("visualTransformation")
+        // println("visualTransformation")
         return TransformedText(annotatedString, OffsetMapping.Identity)
     }
 
 
-
-    @OptIn(ExperimentalFoundationApi::class)
-    val textFieldState by mutableStateOf(androidx.compose.foundation.text2.input.TextFieldState(initialText))
+   // @OptIn(ExperimentalFoundationApi::class)
+   // val textFieldState by mutableStateOf(androidx.compose.foundation.text.input.TextFieldState(initialText))
 }
