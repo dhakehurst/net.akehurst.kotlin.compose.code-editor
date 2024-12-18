@@ -55,9 +55,9 @@ interface AutocompleteItem {
     val text: String
 
     /**
-     * when not null will add ($name) after the text
+     * when not null will use this label in the autocomplete list with text in (...)
      */
-    val name: String?
+    val label: String?
 
     fun equalTo(other: AutocompleteItem): Boolean
 }

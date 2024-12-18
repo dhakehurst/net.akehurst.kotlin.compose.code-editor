@@ -46,102 +46,11 @@ import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.text.input.TransformedText
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.round
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.launch
 import net.akehurst.kotlin.compose.editor.api.AutocompleteFunction
 import net.akehurst.kotlin.compose.editor.api.LineTokensFunction
-
-
-data class CursorDetails(
-    val brush: SolidColor
-) {
-    var inView = true
-    var position = 0
-    var rect = Rect.Zero
-
-    //val top get() = rect.topCenter
-    //val bot get() = Offset(top.x, top.y + rect.height)
-    fun updatePos(newPos: Int, inView: Boolean) {
-        this.inView = inView
-        this.position = newPos
-    }
-
-    fun updateRect(newRect: Rect) {
-        this.rect = newRect
-    }
-}
-
-//FIXME: bug on JS getLineEnd does not work - workaround
-
-class LineMetrics(
-    initialText: String
-) {
-    companion object {
-        val eol = Regex("\n")
-    }
-
-    //private val mutex = Mutex()
-    private var lineEndsAt = eol.findAll(initialText).toList()
-
-    private val lineCount get() = lineEndsAt.size + 1
-    val firstPosition = 0
-    var lastPosition = initialText.length; private set
-
-//    fun update(newText: String) {
-////        mutex.withLock {
-//        lastPosition = newText.length
-//        lineEndsAt = eol.findAll(newText).toList()
-////        }
-//    }
-
-    fun lineForPosition(position: Int): Int {
-        val ln = lineEndsAt.indexOfLast { it.range.first < position }
-        return when (ln) {
-            -1 -> 0 // position must be on first line
-            else -> ln + 1
-        }
-    }
-
-    /**
-     * start of firstLine
-     * finish of lastLine
-     */
-    fun viewEnds(firstLine: Int, lastLine: Int): Pair<Int, Int> {
-//        mutex.withLock {
-        val s = lineStart(firstLine)
-        val f = lineFinish(lastLine)
-        return Pair(s, f)
-//        }
-    }
-
-    /**
-     * line start and finish
-     */
-    fun lineEnds(lineNumber: Int): Pair<Int, Int> {
-//        mutex.withLock {
-        val s = lineStart(lineNumber)
-        val f = lineFinish(lineNumber)
-        return Pair(s, f)
-//        }
-    }
-
-    /**
-     * index/position in text where lineNumber starts (after previous line EOL)
-     */
-    private fun lineStart(lineNumber: Int) = when {
-        0 == lineNumber -> 0
-        lineNumber >= (lineCount) -> lastPosition
-        else -> lineEndsAt[lineNumber - 1].range.last + 1
-    }
-
-    /**
-     * index/position in text where lineNumber finishes (before EOL)
-     */
-    private fun lineFinish(lineNumber: Int) = when {
-        lineNumber >= (lineCount - 1) -> lastPosition
-        else -> lineEndsAt[lineNumber].range.first
-    }
-}
 
 /*
  * KEY_PRESSED
@@ -168,10 +77,10 @@ fun CodeEditor(
     )
 ) {
 
-    val scope = rememberCoroutineScope().also {
+    rememberCoroutineScope().also {
         editorState.scope = it
         editorState.autocompleteState.scope = it
-        // editorState.currentRecomposeScope = currentRecomposeScope
+        editorState.currentRecomposeScope = currentRecomposeScope
         //editorState.clipboardManager = LocalClipboardManager.current
     }
     val state by remember { mutableStateOf(editorState) }
@@ -191,101 +100,23 @@ fun CodeEditor(
             }
         }
         //Text editing
-        Box(
+        Box( //if column autocomplete menu does not display!
             modifier = Modifier.fillMaxSize()
         ) {
-/*
-            CompositionLocalProvider(
-                LocalTextSelectionColors provides TextSelectionColors(
-                    handleColor = LocalTextSelectionColors.current.handleColor,
-                    backgroundColor = Color.Red
-                )
-            ) {
 
-                // Visible Viewport
-                // A CoreTextField that displays the styled text
-                // just the subsection of text that is visible is formatted
-                // The 'input' CoreTextField is transparent and sits on top of this.
+            CoreTextField(
+                value = state.inputTextValue,
+                onValueChange = state::onValueChange,
+                modifier = Modifier
+                    .fillMaxSize()
+                    //.padding(5.dp,5.dp)
+                    .onPreviewKeyEvent { ev -> editorState.handlePreviewKeyEvent(ev) }
+                    .onKeyEvent { ev -> editorState.handleKeyEvent(ev) },
+                textScrollerPosition = state.inputScrollerPosition,
+                onTextLayout = state::onTextLayout,
+                cursorBrush = SolidColor(Color.Red),
+            )
 
-                CoreTextField(
-                    readOnly = false,
-                    enabled = false,
-                    value = state.viewTextValue,
-                    onValueChange = {
-                        // nothing needed as 'input service' does not make the changes
-                        // state.viewTextValue = it
-                    },
-                    onTextLayout = { },
-                    // onScroll = {
-                    //     if (null != it) {
-                    //         //state.viewLineMetrics.update(it.layoutInput.text.text)
-                    //         state.updateViewCursorRect(it)
-                    //     }
-                    //  },
-                    modifier = Modifier
-                        //.fillMaxSize()
-                        .matchParentSize()
-                        .drawWithContent {
-                            drawContent()
-                            // draw the cursors
-                            // (can't see how to make the actual cursor visible unless the control has focus)
-                            state.viewCursor.let {
-                                if (it.inView) {
-                                    drawLine(
-                                        strokeWidth = 3f,
-                                        brush = it.brush,
-                                        start = it.rect.topCenter,
-                                        end = it.rect.bottomCenter
-                                    )
-                                }
-                            }
-                        },
-                )
-            }
-*/
-            // The input CoreTextField
-            // sits on top receives user interactions
-            // and contains the whole text - with no styling
-            // Transparent
-            CompositionLocalProvider(
-                // make selections transparent in the in
-                LocalTextSelectionColors provides TextSelectionColors(
-                    handleColor = LocalTextSelectionColors.current.handleColor,
-                    backgroundColor = Color.Red
-                )
-            ) {
-                CoreTextField(
-                    value = state.inputTextValue,
-                    onValueChange = state::onValueChange,
-                    //                    textStyle = TextStyle(color = Color.Transparent),
-                    modifier = Modifier
-                        .matchParentSize()
-                        //.fillMaxSize()
-                        //.padding(5.dp,5.dp)
-                        .drawWithContent {
-                            drawContent()
-                            // draw the cursors
-                            // (can't see how to make the actual cursor visible unless the control has focus)
-                            state.viewCursor.let {
-                                if (it.inView) {
-                                    drawLine(
-                                        strokeWidth = 3f,
-                                        brush = it.brush,
-                                        start = it.rect.topCenter,
-                                        end = it.rect.bottomCenter
-                                    )
-                                }
-                            }
-                        }
-                        .onPreviewKeyEvent { ev -> editorState.handlePreviewKeyEvent(ev) }
-                        .onKeyEvent { ev -> editorState.handleKeyEvent(ev) },
-                    textScrollerPosition = state.inputScrollerPosition,
-//                    visualTransformation = state::visualTransformation,
-                    onTextLayout = state::onTextLayout,
-                    //    onScroll = state::onScroll,
-                    cursorBrush = SolidColor(Color.Red),
-                )
-            }
 
             LaunchedEffect(state.inputScrollerPosition) {
                 snapshotFlow { state.inputScrollerPosition.offset }.collect { state.onScroll() }
@@ -312,144 +143,60 @@ class EditorState(
 
     var scope: CoroutineScope? = null
     var currentRecomposeScope: RecomposeScope? = null
-    //var clipboardManager: MyClipboardManager? = MyClipboardManager
 
     internal val inputScrollerPosition by mutableStateOf(TextFieldScrollerPosition(Orientation.Vertical))
-
-    //var inputTextValue by mutableStateOf(TextFieldValue(initialText))
     var inputRawText by mutableStateOf(initialText)
-
-    //FIXME: bug on JS getLineEnd does not work - workaround
-    val inputLineMetrics by derivedStateOf {
-        LineMetrics(inputRawText)
-    }
-    val inputAnnotatedText by derivedStateOf { annotateText(inputRawText) }
     var inputSelection by mutableStateOf(TextRange.Zero)
-    val inputTextValue by derivedStateOf {
-        TextFieldValue(annotatedString = inputAnnotatedText, selection = inputSelection)
-    }
+    val inputAnnotatedText by derivedStateOf { annotateText(inputRawText) }
+    val inputTextValue by derivedStateOf { TextFieldValue(annotatedString = inputAnnotatedText, selection = inputSelection) }
+    var lastTextLayoutResult: TextLayoutResult? = null
 
-    //var viewTextValue by mutableStateOf(TextFieldValue(""))
     var viewFirstLine by mutableStateOf(0)
     var viewLastLine by mutableStateOf(0)
     var viewFirstLineStartIndex by mutableStateOf(0)
     var viewLastLineFinishIndex by mutableStateOf(0)
-    val viewCursor by mutableStateOf(CursorDetails(SolidColor(Color.Red)))
+
     internal val autocompleteState by mutableStateOf(
         AutocompleteState(
             { this.inputRawText },
             { this.inputSelection.start },
-            { this.viewCursor },
+//            { this.viewCursor.rect.bottomRight.round() },
+            { this.lastTextLayoutResult!!.getCursorRect(this.inputSelection.start).bottomRight.round() },
             { this.insertText(it) },
             requestAutocompleteSuggestions
         )
     )
     val autocompleteOffset by mutableStateOf(IntOffset(-1, -1))
 
-//    val viewSelection: TextRange
-//        get() {
-//            val range = inputTextValue.selection
-//            val s = range.start
-//            val e = range.end
-//            return TextRange(
-//                max(0, range.start - viewFirstLinePos),
-//                max(0, range.end - viewFirstLinePos)
-//            )
-//        }
-
     val annotationsState by mutableStateOf(AnnotationState())
-    /*
-        suspend fun updateView(inputTextLayoutResult: TextLayoutResult) {
-            if (0 == inputScrollerPosition.viewportSize) {
-                // must have been set
-            } else {
-                val newText = inputTextLayoutResult.layoutInput.text.text
-                inputLineMetrics.update(newText)
-                val st = inputScrollerPosition.offset
-                val len = inputScrollerPosition.viewportSize
-                val firstLine = inputTextLayoutResult.MygetLineForVerticalPosition(st)
-                val lastLine = inputTextLayoutResult.MygetLineForVerticalPosition(st + len)//-1
-                //val firstPos = inputTextLayoutResult.getLineStart(firstLine)
-                //val lastPos = textLayoutResult.getLineEnd(lastLine)
 
-                //FIXME: bug on JS getLineEnd does not work - workaround using own line metrics
-                val (fp, lp) = inputLineMetrics.viewEnds(firstLine, lastLine)
-
-                viewFirstLinePos = fp //firstPos
-                viewLastLinePos = lp
-    //            println("View: lines [$firstLine-$lastLine] pos[$fp-$lp]")
-                //val viewText = state.inputTextValue.text.substring(firstPos, lastPos)
-                val annotated = buildAnnotatedString {
-                    addStyle(defaultTextStyle, 0, lp - fp)  // mark whole text with default style
-    //                println("Default-style: ${0}-${lp - fp}")
-                    for (lineNum in firstLine..lastLine) {
-                        //val lineStartPos = textLayoutResult.getLineStart(lineNum)
-                        //val lineFinishPos = textLayoutResult.getLineEnd(lineNum)
-                        //FIXME: bug on JS getLineEnd does not work - workaround
-                        val (lineStartPos, lineFinishPos) = inputLineMetrics.lineEnds(lineNum).let { (s, f) ->
-                            Pair(s.coerceIn(0, newText.length), f.coerceIn(0, newText.length))
-                        }
-                        val viewLineStart = lineStartPos - fp
-                        val viewLineFinish = lineFinishPos - fp
-    //                    println("Line $lineNum: [$lineStartPos-$lineFinishPos] [$viewLineStart-$viewLineFinish]")
-                        val lineText = newText.substring(lineStartPos, lineFinishPos)
-                        if (lineNum != firstLine) {
-                            append("\n")
-                        }
-                        append(lineText)
-                        val toks = try {
-                            getLineTokens(lineNum, lineStartPos, lineText)
-                        } catch (t: Throwable) {
-                            //TODO: log error!
-                            println("Error: in getLineTokens ${t.message} ${t.stackTraceToString()}")
-                            emptyList()
-                        }
-                        for (tk in toks) {
-                            val offsetStart = (viewLineStart + tk.start).coerceIn(viewLineStart, viewLineFinish)
-                            val offsetFinish = (viewLineStart + tk.finish).coerceIn(viewLineStart, viewLineFinish)
-    //                        println("tok: [${tk.start}-${tk.finish}] => [$offsetStart-$offsetFinish]")
-                            addStyle(tk.style, offsetStart, offsetFinish)
-                        }
-                    }
-                }
-                val sel = inputTextValue.selection.toView()
-    //            println(annotated.spanStyles.joinToString { "(${it.start}-${it.end})" })
-                updateViewCursorPos() // before setting the value, it does not use the value
-                viewTextValue = TextFieldValue(annotatedString = annotated, selection = sel)  //inputTextValue.copy(annotatedString = annotated, selection = sel)
-            }
+    fun updateViewDetails() {
+        val textLayoutResult = lastTextLayoutResult
+        if (null!=textLayoutResult) {
+            val st = inputScrollerPosition.offset
+            val len = inputScrollerPosition.viewportSize
+            val firstLine = textLayoutResult.getLineForVerticalPosition(st)
+            val lastLine = textLayoutResult.getLineForVerticalPosition(st + len)
+            val fp = textLayoutResult.getLineStart(firstLine)
+            val lp = textLayoutResult.getLineEnd(lastLine)
+            viewFirstLine = firstLine
+            viewLastLine = lastLine
+            viewFirstLineStartIndex = fp
+            viewLastLineFinishIndex = lp
+        } else {
+            // cannot update
         }
-    */
-
-    fun updateViewDetails(textLayoutResult: TextLayoutResult) {
-        val newText = textLayoutResult.layoutInput.text.text
-        //inputLineMetrics.update(newText)
-        val st = inputScrollerPosition.offset
-        val len = inputScrollerPosition.viewportSize
-        //val firstLine = textLayoutResult.MygetLineForVerticalPosition(st)
-        //val lastLine = textLayoutResult.MygetLineForVerticalPosition(st + len)
-        val firstLine = textLayoutResult.getLineForVerticalPosition(st)
-        val lastLine = textLayoutResult.getLineForVerticalPosition(st + len)
-        val (fp, lp) = inputLineMetrics.viewEnds(firstLine, lastLine)
-        viewFirstLine = firstLine
-        viewLastLine = lastLine
-        viewFirstLineStartIndex = fp
-        viewLastLineFinishIndex = lp
-        updateViewCursorPos()
-        updateViewCursorRect(textLayoutResult)
     }
 
-    fun annotateText(rawText: String): AnnotatedString {
+    private fun annotateText(rawText: String): AnnotatedString {
         return if (0 == inputScrollerPosition.viewportSize) {
             AnnotatedString(rawText)
         } else {
             buildAnnotatedString {
-//                addStyle(defaultTextStyle, 0, lp - fp)  // mark whole text with default style
                 append(rawText)
                 for (lineNum in viewFirstLine..viewLastLine) {
-                    //val lineStartPos = textLayoutResult.getLineStart(lineNum)
-                    //val lineFinishPos = textLayoutResult.getLineEnd(lineNum)
-                    //FIXME: bug on JS getLineEnd does not work - workaround
-                    val (lineStartPos, lineFinishPos) = inputLineMetrics.lineEnds(lineNum)
+                    val lineStartPos = lastTextLayoutResult!!.getLineStart(lineNum)
+                    val lineFinishPos = lastTextLayoutResult!!.getLineEnd(lineNum)
                     val lineText = rawText.substring(lineStartPos, lineFinishPos)
                     val toks = try {
                         getLineTokens(lineNum, lineStartPos, lineText)
@@ -468,83 +215,24 @@ class EditorState(
         }
     }
 
-    /*
-        fun TextRange.toView(): TextRange {
-            val start = (inputTextValue.selection.start - viewFirstLinePos).coerceIn(0, viewLastLinePos)
-            val end = (inputTextValue.selection.end - viewFirstLinePos).coerceIn(0, viewLastLinePos)
-            return TextRange(start, end)
-        }
-    */
-    fun updateViewCursorPos() {
-        // update the drawn cursor position
-        val selStart = inputTextValue.selection.start// - viewFirstLinePos
-        val (vss, inView) = when {
-            selStart < viewFirstLineStartIndex -> Pair(selStart - viewFirstLineStartIndex, false)
-            selStart > viewLastLineFinishIndex -> Pair(selStart - viewFirstLineStartIndex, false)
-            else -> Pair(selStart - viewFirstLineStartIndex, true)
-        }
-        viewCursor.updatePos(vss, inView)
-    }
-
     fun refresh() = currentRecomposeScope?.invalidate()
-
-    fun updateViewCursorRect(viewTextLayoutResult: TextLayoutResult) {
-        // update the drawn cursor position
-        val pos = inputTextValue.selection.start //viewCursor.position
-        //val p = pos.coerceIn(0,viewTextLayoutResult.layoutInput.text.length)
-
-        val cr = viewTextLayoutResult.getCursorRect(pos)
-
-        // Issue [https://github.com/JetBrains/compose-multiplatform/issues/3120]
-        // cursor is invisible on JS because cursor rect has 0 height, due to lineMetric issues
-        // workaround, figure out position myself
-        // left and right of original seem to be correct
-        //val ln = viewLineMetrics.lineForPosition(p)
-        val ln = inputLineMetrics.lineForPosition(pos) - viewFirstLine
-        val lineHeight = when {
-            0f != cr.height -> cr.height //assume height is correct when text is empty, it seems so
-            else -> viewCursor.rect.height // use last height
-        }
-        val top = ln * lineHeight
-        val bottom = top + lineHeight
-
-        val cr2 = Rect(cr.left, top, cr.right, bottom)
-        viewCursor.updateRect(cr2)
-    }
 
     fun setNewText(text: String) {
         this.inputRawText = text
-        viewCursor.position = 0
     }
 
     fun insertText(text: String) {
-        val pos = viewCursor.position
+        val pos = inputSelection.start
         val before = this.inputRawText.substring(0, pos)
         val after = this.inputRawText.substring(pos)
         val newText = before + text + after
         val sel = inputTextValue.selection
         this.inputSelection = TextRange(sel.start + text.length)
         this.inputRawText = newText
-        viewCursor.position = viewCursor.position + text.length
-        //refresh()
+        refresh()
     }
 
-    val KeyEvent.isCtrlSpace
-        get() = (key == Key.Spacebar || utf16CodePoint == ' '.code) && isCtrlPressed
-/*
-    val KeyEvent.isCtrlV
-        get() = (key == Key.V || utf16CodePoint == 'v'.code) && isCtrlPressed
-    val KeyEvent.isCmdV
-        get() = (key == Key.V || utf16CodePoint == 'v'.code) && isMetaPressed
-
-    val KeyEvent.isCtrlC
-        get() = (key == Key.C || utf16CodePoint == 'c'.code) && isCtrlPressed
-    val KeyEvent.isCmdC
-        get() = (key == Key.C || utf16CodePoint == 'c'.code) && isMetaPressed
-
-    val KeyEvent.isCopy get() = isCmdC || isCtrlC
-    val KeyEvent.isPaste get() = isCmdV || isCtrlV
-*/
+    val KeyEvent.isCtrlSpace get() = (key == Key.Spacebar || utf16CodePoint == ' '.code) && isCtrlPressed
 
     fun handlePreviewKeyEvent(ev: KeyEvent): Boolean {
         //println("$ev ${ev.key} ${ev.key.keyCode}")
@@ -581,20 +269,7 @@ class EditorState(
                             scope?.launch { autocompleteState.open() }
                             true
                         }
-/*
-                        ev.isCopy -> {
-                            val selectedText = inputAnnotatedText.subSequence(inputSelection)
-//                            clipboardManager?.setText(selectedText)
-                            true
-                        }
 
-                        ev.isPaste -> {
-                            scope?.launch {
-//                                clipboardManager?.getText()?.text?.let { insertText(it) }
-                            }
-                            true
-                        }
-*/
                         else -> false
                     }
 
@@ -605,8 +280,6 @@ class EditorState(
             // KeyUp | KeyPressed
             else -> when {
                 ev.isCtrlSpace -> true
- //               ev.isCopy -> true
- //               ev.isPaste -> true
                 else -> false
             }
         }
@@ -618,8 +291,6 @@ class EditorState(
             // KeyDown | KeyUp | KeyPressed
             else -> when {
                 ev.isCtrlSpace -> true
- //               ev.isCopy -> true
-//                ev.isPaste -> true
                 else -> false
             }
         }
@@ -637,24 +308,15 @@ class EditorState(
         // inputTextValue = textFieldValue
     }
 
-    fun onScroll(textLayoutResult: TextLayoutResult?) {
+    fun onScroll() {
         // println("onScroll")
-        if (textLayoutResult != null) {
-            updateViewDetails(textLayoutResult)
-        }
+        updateViewDetails()
     }
 
     fun onTextLayout(textLayoutResult: TextLayoutResult) {
         // println("onTextLayout")
-        updateViewDetails(textLayoutResult)
+        lastTextLayoutResult = textLayoutResult
+        updateViewDetails()
     }
 
-    fun visualTransformation(annotatedString: AnnotatedString): TransformedText {
-        // println("visualTransformation")
-        return TransformedText(annotatedString, OffsetMapping.Identity)
-    }
-
-
-   // @OptIn(ExperimentalFoundationApi::class)
-   // val textFieldState by mutableStateOf(androidx.compose.foundation.text.input.TextFieldState(initialText))
 }

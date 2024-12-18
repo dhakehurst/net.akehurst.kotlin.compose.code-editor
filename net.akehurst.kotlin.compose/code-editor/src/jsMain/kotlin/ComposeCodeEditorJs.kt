@@ -26,8 +26,6 @@ import org.w3c.dom.Element
 import org.w3c.dom.HTMLCanvasElement
 import org.w3c.dom.HTMLScriptElement
 
-
-
 @OptIn(ExperimentalComposeUiApi::class)
 class ComposeCodeEditorJs(
     editorElement: Element,

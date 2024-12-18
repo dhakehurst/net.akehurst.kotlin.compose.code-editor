@@ -33,6 +33,7 @@ import androidx.compose.ui.window.singleWindowApplication
 import net.akehurst.kotlin.compose.editor.CodeEditor
 import net.akehurst.kotlin.compose.editor.CodeEditor2
 import net.akehurst.kotlin.compose.editor.EditorState
+import net.akehurst.kotlin.compose.editor.EditorState2
 import net.akehurst.kotlin.compose.editor.api.AutocompleteItem
 import net.akehurst.kotlin.compose.editor.api.AutocompleteSuggestion
 import net.akehurst.kotlin.compose.editor.api.EditorLineToken
@@ -41,7 +42,7 @@ import kotlin.test.Test
 data class AcItem(
     override val text: String
 ) : AutocompleteItem {
-    override val name: String? get() = text
+    override val label: String? get() = text
     override fun equalTo(other: AutocompleteItem): Boolean =when {
         other !is AcItem -> false
         this.text != other.text -> false
@@ -106,7 +107,7 @@ class test_CodeEditor {
                 override val style: SpanStyle get() = SpanStyle(color = Color.Blue)
             }
         }
-        val t3 = Regex("else|if|[{]|[}]}").findAll(lineText).map {
+        val t3 = Regex("else|if|[{]|[}]").findAll(lineText).map {
             it.range.first
             object : EditorLineToken {
                 override val start: Int get() = it.range.first

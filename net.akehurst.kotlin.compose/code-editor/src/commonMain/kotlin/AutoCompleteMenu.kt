@@ -17,7 +17,6 @@
 package net.akehurst.kotlin.compose.editor
 
 import androidx.compose.foundation.*
-import androidx.compose.foundation.gestures.ScrollableState
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyListState
@@ -32,7 +31,6 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.round
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.launch
 import net.akehurst.kotlin.compose.editor.api.AutocompleteFunction
@@ -55,7 +53,7 @@ internal fun AutocompletePopup(
             shadowElevation = 1.dp,
             border = BorderStroke(Dp.Hairline, MaterialTheme.colorScheme.onSurface),
             modifier = modifier
-                .offset { state.getCursor().rect.bottomRight.round() }
+                .offset { state.getMenuOffset() }
                 .padding(vertical = 2.dp)
         ) {
             Column(
@@ -79,7 +77,7 @@ internal fun AutocompletePopup(
                         ) {
                             Text(item.text.fixLength(15))
                             Spacer(Modifier.width(20.dp))
-                            item.name?.let {
+                            item.label?.let {
                                 Text("(${it.fixLength(10)})")
                             }
                         }
@@ -104,7 +102,7 @@ internal class AutocompleteState(
     //val editorState: EditorState,
     val getText: () -> CharSequence,
     val getCursorPosition: () -> Int,
-    val getCursor: () -> CursorDetails,
+    val getMenuOffset: () -> IntOffset,
     val insertText: (String) -> Unit,
     val requestAutocompleteSuggestions: AutocompleteFunction
 ) {

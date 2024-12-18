@@ -28,6 +28,7 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.BasicTextField
+import androidx.compose.foundation.text.input.TextFieldCharSequence
 import androidx.compose.foundation.text.input.TextFieldState
 import androidx.compose.foundation.text.input.insert
 import androidx.compose.foundation.text.selection.LocalTextSelectionColors
@@ -36,6 +37,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.drawWithContent
+import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.input.key.*
@@ -45,10 +47,30 @@ import androidx.compose.ui.text.TextLayoutResult
 import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.round
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.launch
 import net.akehurst.kotlin.compose.editor.api.AutocompleteFunction
 import net.akehurst.kotlin.compose.editor.api.LineTokensFunction
+
+data class CursorDetails(
+    val brush: SolidColor
+) {
+    var inView = true
+    var position = 0
+    var rect = Rect.Zero
+
+    //val top get() = rect.topCenter
+    //val bot get() = Offset(top.x, top.y + rect.height)
+    fun updatePos(newPos: Int, inView: Boolean) {
+        this.inView = inView
+        this.position = newPos
+    }
+
+    fun updateRect(newRect: Rect) {
+        this.rect = newRect
+    }
+}
 
 
 /*
@@ -86,6 +108,7 @@ fun CodeEditor2(
     Row(
         modifier = modifier.weight(1f)
     ) {
+        // Margin Annotations
         LazyColumn(
             modifier = Modifier
                 .width(20.dp)
@@ -98,99 +121,48 @@ fun CodeEditor2(
             }
         }
         //Text editing
-        //Box(
         Column(
             modifier = Modifier.fillMaxSize()
         ) {
-/*
-            CompositionLocalProvider(
-                LocalTextSelectionColors provides TextSelectionColors(
-                    handleColor = LocalTextSelectionColors.current.handleColor,
-                    backgroundColor = Color.Red
-                )
-            ) {
 
-                // Visible Viewport
-                // A CoreTextField that displays the styled text
-                // just the subsection of text that is visible is formatted
-                // The 'input' CoreTextField is transparent and sits on top of this.
-
-                BasicTextField(
-                    //state = editorState.viewTextFieldState,
-                    value = editorState.viewTextValue,
-                    onValueChange = {},
-                    readOnly = false,
-                    enabled = false,
-                    onTextLayout = { },
-                    modifier = Modifier
-                        .background(color = Color.LightGray)
-                        //.fillMaxSize()
-//                        .matchParentSize()
-                        .height(50.dp)
-                        .drawWithContent {
-                            drawContent()
-                            // draw the cursors
-                            // (can't see how to make the actual cursor visible unless the control has focus)
-                            state.viewCursor.let {
-                                if (it.inView) {
-                                    drawLine(
-                                        strokeWidth = 3f,
-                                        brush = it.brush,
-                                        start = it.rect.topCenter,
-                                        end = it.rect.bottomCenter
-                                    )
-                                }
-                            }
-                        },
-                )
-            }
-*/
-            // The input CoreTextField
-            // sits on top receives user interactions
-            // and contains the whole text - with no styling
-            // Transparent
-            CompositionLocalProvider(
-                // make selections transparent in the in
-                LocalTextSelectionColors provides TextSelectionColors(
-                    handleColor = LocalTextSelectionColors.current.handleColor,
-//                    backgroundColor = Color.Transparent
-                    backgroundColor = Color.Blue
-                )
-            ) {
-
-                BasicTextField(
-                    //cursorBrush = SolidColor(Color.Red),
-                    //                    textStyle = TextStyle(color = Color.Transparent),
-                    state = editorState.inputTextFieldState,
-                    modifier = Modifier
-//                        .matchParentSize()
-                        //.fillMaxSize()
-                        //.padding(5.dp,5.dp)
-/*                        .drawWithContent {
-                            drawContent()
-                            // draw the cursors
-                            // (can't see how to make the actual cursor visible unless the control has focus)
-                            state.viewCursor.let {
-                                if (it.inView) {
-                                    drawLine(
-                                        strokeWidth = 3f,
-                                        brush = it.brush,
-                                        start = it.rect.topCenter,
-                                        end = it.rect.bottomCenter
-                                    )
-                                }
-                            }
-                        }
-*/
-                        .onPreviewKeyEvent { ev -> editorState.handlePreviewKeyEvent(ev) }
-                        .onKeyEvent { ev -> editorState.handleKeyEvent(ev) },
-                    onTextLayout = { r -> r.invoke()?.let { editorState.onInputTextLayout(it) } },
-                    scrollState = editorState.inputScrollState,
-                )
-            }
+            BasicTextField(
+                cursorBrush = SolidColor(Color.Red),
+                //                    textStyle = TextStyle(color = Color.Transparent),
+                state = editorState.inputTextFieldState,
+                modifier = Modifier
+                   // .matchParentSize()
+                    .fillMaxSize()
+                    //.padding(5.dp,5.dp)
+                    /*                        .drawWithContent {
+                                                drawContent()
+                                                // draw the cursors
+                                                // (can't see how to make the actual cursor visible unless the control has focus)
+                                                state.viewCursor.let {
+                                                    if (it.inView) {
+                                                        drawLine(
+                                                            strokeWidth = 3f,
+                                                            brush = it.brush,
+                                                            start = it.rect.topCenter,
+                                                            end = it.rect.bottomCenter
+                                                        )
+                                                    }
+                                                }
+                                            }
+                    */
+                    .onPreviewKeyEvent { ev -> editorState.handlePreviewKeyEvent(ev) }
+                    .onKeyEvent { ev -> editorState.handleKeyEvent(ev) },
+                onTextLayout = { r ->
+                    r.invoke()?.let { editorState.onInputTextLayout(it) }
+                },
+                scrollState = editorState.inputScrollState,
+            )
 
             LaunchedEffect(editorState.inputTextFieldState) {
                 snapshotFlow { editorState.inputTextFieldState.value }.collect { editorState.onInputChange() }
+            }
+
+            LaunchedEffect(editorState.inputScrollState) {
+                snapshotFlow { editorState.inputScrollState.value }.collect { editorState.onInputScroll() }
             }
 
             // for autocomplete popup
@@ -214,23 +186,23 @@ class EditorState2(
 
     val inputTextFieldState by mutableStateOf(TextFieldState(initialText))
     val inputRawText get() = inputTextFieldState.text
-    val inputScrollState = ScrollState(0)
-    val inputScrollerViewportSize get() = inputScrollState.viewportSize
+    val inputScrollState by mutableStateOf(ScrollState(0))
+    val inputScrollerViewportSize get() = inputScrollState.maxValue// viewportSize
     val inputScrollerOffset get() = inputScrollState.value
+
+    var lastTextLayoutResult: TextLayoutResult? = null
 
     val viewCursor by mutableStateOf(CursorDetails(SolidColor(Color.Red)))
     var viewFirstLine by mutableStateOf(0)
     var viewLastLine by mutableStateOf(0)
     var viewFirstLineStartIndex by mutableStateOf(0)
     var viewLastLineFinishIndex by mutableStateOf(0)
-//    var viewTextValue by mutableStateOf(TextFieldValue(""))
-//    val viewCursor by mutableStateOf(CursorDetails(SolidColor(Color.Red)))
 
     internal val autocompleteState by mutableStateOf(
         AutocompleteState(
             { this.inputTextFieldState.text },
             { this.inputTextFieldState.selection.start },
-            { this.viewCursor },
+            { this.viewCursor.rect.bottomRight.round() },
             { txt -> this.inputTextFieldState.edit { this.insert(inputTextFieldState.selection.start, txt) } },
             requestAutocompleteSuggestions
         )
@@ -307,9 +279,21 @@ class EditorState2(
 //        if (inputSelection != textFieldValue.selection) {
 //            inputSelection = textFieldValue.selection
 //        }
+
+    }
+
+    fun onInputScroll() {
+        if (null!=lastTextLayoutResult) {
+            updateViewDetails(lastTextLayoutResult!!)
+        }
     }
 
     fun onInputTextLayout(textLayoutResult: TextLayoutResult) {
+        lastTextLayoutResult = textLayoutResult
+        val annText = annotateText(textLayoutResult)
+        inputTextFieldState.edit {
+            this.replace(0, originalText.length, annText)
+        }
         // println("onTextLayout")
         updateViewDetails(textLayoutResult)
     }
@@ -326,14 +310,14 @@ class EditorState2(
         viewLastLine = lastLine
         viewFirstLineStartIndex = fp
         viewLastLineFinishIndex = lp
- //       updateViewCursorPos()
- //       updateViewCursorRect(textLayoutResult)
+        //       updateViewCursorPos()
+        //       updateViewCursorRect(textLayoutResult)
     }
 
     fun annotateText(textLayoutResult: TextLayoutResult): AnnotatedString {
-        val rawText = ""
-        return if (0 == inputScrollerViewportSize) {
-            AnnotatedString("")
+        val rawText = inputTextFieldState.text.toString()
+        return if (Int.MAX_VALUE == inputScrollerViewportSize || 0 == inputScrollerViewportSize) {
+            AnnotatedString(rawText)
         } else {
             buildAnnotatedString {
 //                addStyle(defaultTextStyle, 0, lp - fp)  // mark whole text with default style
