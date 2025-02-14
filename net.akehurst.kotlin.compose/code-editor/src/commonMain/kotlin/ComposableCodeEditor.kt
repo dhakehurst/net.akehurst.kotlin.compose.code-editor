@@ -1,5 +1,5 @@
 /**
- * Copyright (C) 2024 Dr. David H. Akehurst (http://dr.david.h.akehurst.net)
+ * Copyright (C) 2025 Dr. David H. Akehurst (http://dr.david.h.akehurst.net)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -17,53 +17,27 @@
 package net.akehurst.kotlin.compose.editor
 
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.ui.ExperimentalComposeUiApi
+import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.window.CanvasBasedWindow
-import net.akehurst.kotlin.compose.editor.api.*
-import org.jetbrains.skiko.wasm.onWasmReady
-import org.w3c.dom.Element
-import org.w3c.dom.HTMLCanvasElement
-import org.w3c.dom.HTMLScriptElement
+import net.akehurst.kotlin.compose.editor.api.AutocompleteFunction
+import net.akehurst.kotlin.compose.editor.api.AutocompleteState
+import net.akehurst.kotlin.compose.editor.api.ComposeCodeEditor
+import net.akehurst.kotlin.compose.editor.api.LineTokensFunction
 
-@OptIn(ExperimentalComposeUiApi::class)
-class ComposeCodeEditorJs(
-    editorElement: Element,
+
+class ComposableCodeEditor(
     initialText: String = "",
     override var onTextChange: (String) -> Unit = {},
     override var getLineTokens: LineTokensFunction = { _, _, _ -> emptyList() },
     override var requestAutocompleteSuggestions: AutocompleteFunction = { _, _, _ -> },
 ) : ComposeCodeEditor {
 
-    val script: HTMLScriptElement
-    val canvas: HTMLCanvasElement
-
-    private val editorState = EditorState(
+    val editorState = EditorState(
         initialText = initialText,
         onTextChange = { onTextChange.invoke(it) },
         getLineTokens = { lineNumber, lineStartPosition, lineText -> getLineTokens.invoke(lineNumber, lineStartPosition, lineText) },
         requestAutocompleteSuggestions = { position, text, result -> requestAutocompleteSuggestions.invoke(position, text, result) }
     )
-
-    init {
-        script = editorElement.ownerDocument!!.createElement("script") as HTMLScriptElement
-        script.setAttribute("src", "skiko.js")
-        editorElement.ownerDocument!!.body!!.appendChild(script)
-        val elementId = editorElement.id
-        canvas = editorElement.ownerDocument!!.createElement("canvas") as HTMLCanvasElement
-        canvas.id = "canvas_$elementId"
-        editorElement.appendChild(canvas)
-        onWasmReady {
-            CanvasBasedWindow(
-                canvasElementId = canvas.id
-            ) {
-                CodeEditor(
-                    modifier = Modifier.fillMaxSize(),
-                    editorState = editorState
-                )
-            }
-        }
-    }
 
     override var text: String
         get() = editorState.inputRawText
@@ -71,15 +45,21 @@ class ComposeCodeEditorJs(
             editorState.setNewText(value)
         }
 
-    override val autocomplete: AutocompleteState
-        get() = editorState.autocompleteState
+    override val autocomplete: AutocompleteState get() = editorState.autocompleteState
+
+    override fun refreshTokens() = editorState.refresh()
 
     override fun destroy() {
-        canvas.remove()
-        script.remove()
+        // not sure what is needed here!
     }
 
-    override fun refreshTokens() {
-        editorState.refresh()
+    @Composable
+    fun content() {
+        CodeEditor(
+            modifier = Modifier
+                .fillMaxSize(),
+            editorState = editorState
+        )
     }
+
 }

@@ -28,6 +28,9 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.input.key.Key
+import androidx.compose.ui.input.key.KeyEvent
+import androidx.compose.ui.input.key.key
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
@@ -35,6 +38,7 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.launch
 import net.akehurst.kotlin.compose.editor.api.AutocompleteFunction
 import net.akehurst.kotlin.compose.editor.api.AutocompleteItem
+import net.akehurst.kotlin.compose.editor.api.AutocompleteState
 import net.akehurst.kotlin.compose.editor.api.AutocompleteSuggestion
 
 fun String.fixLength(maxLen: Int) = when {
@@ -46,7 +50,7 @@ fun String.fixLength(maxLen: Int) = when {
 @Composable
 internal fun AutocompletePopup(
     modifier: Modifier = Modifier,
-    state: AutocompleteState
+    state: AutocompleteStateCompose
 ) {
     if (state.isVisible) {
         Surface(
@@ -98,19 +102,19 @@ internal fun AutocompletePopup(
 }
 
 @Stable
-internal class AutocompleteState(
+internal class AutocompleteStateCompose(
     //val editorState: EditorState,
     val getText: () -> CharSequence,
     val getCursorPosition: () -> Int,
     val getMenuOffset: () -> IntOffset,
     val insertText: (String) -> Unit,
     val requestAutocompleteSuggestions: AutocompleteFunction
-) {
+) : AutocompleteState {
     var scope: CoroutineScope? = null
 
     val lazyListState = LazyListState()
-    var isVisible by mutableStateOf(false)
-    var isLoading by mutableStateOf(true)
+    override var isVisible by mutableStateOf(false)
+    override var isLoading by mutableStateOf(true)
     var selectedIndex by mutableStateOf<Int>(-1)
     var items = mutableStateListOf<AutocompleteItem>()
 
@@ -118,19 +122,10 @@ internal class AutocompleteState(
 
     val selectedItem get() = items.getOrNull(selectedIndex)
 
-    suspend fun open() {
+    fun open() {
         isVisible = true
         isLoading = true
-        val result = object : AutocompleteSuggestion {
-            override fun provide(items: List<AutocompleteItem>) {
-                this@AutocompleteState.items.addAll(items)
-                isLoading = false
-                if (items.isNotEmpty()) {
-                    selectedIndex = 0
-                }
-            }
-        }
-        requestAutocompleteSuggestions.invoke(getCursorPosition(), getText(), result)
+        requestSuggestions()
     }
 
     fun scrollToSelected() {
@@ -156,6 +151,7 @@ internal class AutocompleteState(
                 selectedIndex--
                 scrollToSelected()
             }
+
             else -> Unit
         }
     }
@@ -177,5 +173,36 @@ internal class AutocompleteState(
         isVisible = false
         items.clear()
         selectedIndex = -1
+    }
+
+    fun handleKey(ev: KeyEvent): Boolean {
+        var handled = true
+        when {
+            ev.isCtrlSpace -> requestSuggestions()
+            else -> when (ev.key) {
+                Key.Escape -> this.close()
+                Key.Enter -> this.chooseSelected()
+                Key.DirectionDown -> this.selectNext()
+                Key.DirectionUp -> this.selectPrevious()
+                else -> handled = false
+            }
+        }
+        return handled
+    }
+
+    private fun requestSuggestions() {
+        items.clear()
+        val result = object : AutocompleteSuggestion {
+            override fun provide(items: List<AutocompleteItem>) {
+                this@AutocompleteStateCompose.items.addAll(items)
+                isLoading = false
+                if (items.isNotEmpty()) {
+                    selectedIndex = 0
+                }
+            }
+        }
+        scope?.launch {
+            requestAutocompleteSuggestions.invoke(getCursorPosition(), getText(), result)
+        }
     }
 }

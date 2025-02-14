@@ -26,31 +26,26 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.layout.RowScopeInstance.weight
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
-import androidx.compose.foundation.text.BasicTextField
 //import androidx.compose.foundation.text.MyCoreTextField2
 import androidx.compose.foundation.text.CoreTextField
 import androidx.compose.foundation.text.TextFieldScrollerPosition
-import androidx.compose.foundation.text.selection.LocalTextSelectionColors
-import androidx.compose.foundation.text.selection.TextSelectionColors
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.drawWithContent
-import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.input.key.*
 import androidx.compose.ui.text.*
-import androidx.compose.ui.text.input.OffsetMapping
 import androidx.compose.ui.text.input.TextFieldValue
-import androidx.compose.ui.text.input.TransformedText
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.round
 import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.launch
 import net.akehurst.kotlin.compose.editor.api.AutocompleteFunction
 import net.akehurst.kotlin.compose.editor.api.LineTokensFunction
+
+val KeyEvent.isCtrlSpace get() = (key == Key.Spacebar || utf16CodePoint == ' '.code) && isCtrlPressed
+
 
 /*
  * KEY_PRESSED
@@ -76,14 +71,14 @@ fun CodeEditor(
         requestAutocompleteSuggestions = { _, _, _ -> },
     )
 ) {
+    val state by remember { mutableStateOf(editorState) }
 
     rememberCoroutineScope().also {
         editorState.scope = it
         editorState.autocompleteState.scope = it
-        editorState.currentRecomposeScope = currentRecomposeScope
+
         //editorState.clipboardManager = LocalClipboardManager.current
     }
-    val state by remember { mutableStateOf(editorState) }
 
     Row(
         modifier = modifier.weight(1f)
@@ -103,7 +98,7 @@ fun CodeEditor(
         Box( //if column autocomplete menu does not display!
             modifier = Modifier.fillMaxSize()
         ) {
-
+            editorState.currentRecomposeScope = currentRecomposeScope
             CoreTextField(
                 value = state.inputTextValue,
                 onValueChange = state::onValueChange,
@@ -116,7 +111,6 @@ fun CodeEditor(
                 onTextLayout = state::onTextLayout,
                 cursorBrush = SolidColor(Color.Red),
             )
-
 
             LaunchedEffect(state.inputScrollerPosition) {
                 snapshotFlow { state.inputScrollerPosition.offset }.collect { state.onScroll() }
@@ -145,10 +139,12 @@ class EditorState(
     var currentRecomposeScope: RecomposeScope? = null
 
     internal val inputScrollerPosition by mutableStateOf(TextFieldScrollerPosition(Orientation.Vertical))
-    var inputRawText by mutableStateOf(initialText)
+   // var inputRawText by mutableStateOf(initialText)
     var inputSelection by mutableStateOf(TextRange.Zero)
-    val inputAnnotatedText by derivedStateOf { annotateText(inputRawText) }
-    val inputTextValue by derivedStateOf { TextFieldValue(annotatedString = inputAnnotatedText, selection = inputSelection) }
+//    val inputAnnotatedText by derivedStateOf(policy = structuralEqualityPolicy()) { annotateText(inputRawText) }
+//    val inputTextValue by derivedStateOf(policy = structuralEqualityPolicy()) { TextFieldValue(annotatedString = inputAnnotatedText, selection = inputSelection) }
+    var inputTextValue by mutableStateOf(TextFieldValue(initialText))
+    val inputRawText get() = inputTextValue.text
     var lastTextLayoutResult: TextLayoutResult? = null
 
     var viewFirstLine by mutableStateOf(0)
@@ -157,7 +153,7 @@ class EditorState(
     var viewLastLineFinishIndex by mutableStateOf(0)
 
     internal val autocompleteState by mutableStateOf(
-        AutocompleteState(
+        AutocompleteStateCompose(
             { this.inputRawText },
             { this.inputSelection.start },
 //            { this.viewCursor.rect.bottomRight.round() },
@@ -170,34 +166,17 @@ class EditorState(
 
     val annotationsState by mutableStateOf(AnnotationState())
 
-    fun updateViewDetails() {
-        val textLayoutResult = lastTextLayoutResult
-        if (null!=textLayoutResult) {
-            val st = inputScrollerPosition.offset
-            val len = inputScrollerPosition.viewportSize
-            val firstLine = textLayoutResult.getLineForVerticalPosition(st)
-            val lastLine = textLayoutResult.getLineForVerticalPosition(st + len)
-            val fp = textLayoutResult.getLineStart(firstLine)
-            val lp = textLayoutResult.getLineEnd(lastLine)
-            viewFirstLine = firstLine
-            viewLastLine = lastLine
-            viewFirstLineStartIndex = fp
-            viewLastLineFinishIndex = lp
-        } else {
-            // cannot update
-        }
-    }
-
-    private fun annotateText(rawText: String): AnnotatedString {
+    private fun annotateText(textLayoutResult: TextLayoutResult): AnnotatedString {
+        val newText = textLayoutResult.layoutInput.text.text
         return if (0 == inputScrollerPosition.viewportSize) {
-            AnnotatedString(rawText)
+            AnnotatedString(newText)
         } else {
             buildAnnotatedString {
-                append(rawText)
+                append(newText)
                 for (lineNum in viewFirstLine..viewLastLine) {
-                    val lineStartPos = lastTextLayoutResult!!.getLineStart(lineNum)
-                    val lineFinishPos = lastTextLayoutResult!!.getLineEnd(lineNum)
-                    val lineText = rawText.substring(lineStartPos, lineFinishPos)
+                    val lineStartPos = textLayoutResult.getLineStart(lineNum)
+                    val lineFinishPos = textLayoutResult.getLineEnd(lineNum)
+                    val lineText = newText.substring(lineStartPos, lineFinishPos)
                     val toks = try {
                         getLineTokens(lineNum, lineStartPos, lineText)
                     } catch (t: Throwable) {
@@ -215,10 +194,13 @@ class EditorState(
         }
     }
 
-    fun refresh() = currentRecomposeScope?.invalidate()
+    fun refresh() {
+       // currentRecomposeScope?.invalidate()
+        updateViewDetails()
+    }
 
     fun setNewText(text: String) {
-        this.inputRawText = text
+        this.inputTextValue = TextFieldValue(text = text, selection = inputSelection)
     }
 
     fun insertText(text: String) {
@@ -228,61 +210,32 @@ class EditorState(
         val newText = before + text + after
         val sel = inputTextValue.selection
         this.inputSelection = TextRange(sel.start + text.length)
-        this.inputRawText = newText
-        refresh()
+        this.inputTextValue = TextFieldValue(text = newText, selection = inputSelection)
     }
-
-    val KeyEvent.isCtrlSpace get() = (key == Key.Spacebar || utf16CodePoint == ' '.code) && isCtrlPressed
 
     fun handlePreviewKeyEvent(ev: KeyEvent): Boolean {
         //println("$ev ${ev.key} ${ev.key.keyCode}")
-        return when (ev.type) {
+        var handled = true
+        when (ev.type) {
             KeyEventType.KeyDown -> when {
-                this.autocompleteState.isVisible -> when (ev.key) {
-                    Key.Escape -> {
-                        this.autocompleteState.close()
-                        true
-                    }
-
-                    Key.Enter -> {
-                        this.autocompleteState.chooseSelected()
-                        true
-                    }
-
-                    Key.DirectionDown -> {
-                        this.autocompleteState.selectNext()
-                        true
-                    }
-
-                    Key.DirectionUp -> {
-                        this.autocompleteState.selectPrevious()
-                        true
-                    }
-
-                    else -> false
-                }
-
+                this.autocompleteState.isVisible -> this.autocompleteState.handleKey(ev)
                 else -> when {
                     ev.isCtrlPressed || ev.isMetaPressed -> when {
-                        ev.isCtrlSpace -> {
-                            // autocomplete
-                            scope?.launch { autocompleteState.open() }
-                            true
-                        }
-
-                        else -> false
+                        ev.isCtrlSpace ->  autocompleteState.open()
+                        else -> handled = false
                     }
 
-                    else -> false
+                    else -> handled = false
                 }
             }
 
             // KeyUp | KeyPressed
             else -> when {
-                ev.isCtrlSpace -> true
-                else -> false
+                ev.isCtrlSpace -> handled = true
+                else -> handled = false
             }
         }
+        return handled
     }
 
     fun handleKeyEvent(ev: KeyEvent): Boolean {
@@ -299,13 +252,13 @@ class EditorState(
     fun onValueChange(textFieldValue: TextFieldValue) {
         //println("onValueChange")
         if (textFieldValue.text != inputRawText) { // has text really changed !
-            inputRawText = textFieldValue.text
+            //inputRawText = textFieldValue.text
             onTextChange(textFieldValue.text)
         }
         if (inputSelection != textFieldValue.selection) {
             inputSelection = textFieldValue.selection
         }
-        // inputTextValue = textFieldValue
+        inputTextValue = textFieldValue
     }
 
     fun onScroll() {
@@ -317,6 +270,26 @@ class EditorState(
         // println("onTextLayout")
         lastTextLayoutResult = textLayoutResult
         updateViewDetails()
+    }
+
+    private fun updateViewDetails() {
+        val textLayoutResult = lastTextLayoutResult
+        if (null!=textLayoutResult) {
+            val st = inputScrollerPosition.offset
+            val len = inputScrollerPosition.viewportSize
+            val firstLine = textLayoutResult.getLineForVerticalPosition(st)
+            val lastLine = textLayoutResult.getLineForVerticalPosition(st + len)
+            val fp = textLayoutResult.getLineStart(firstLine)
+            val lp = textLayoutResult.getLineEnd(lastLine)
+            viewFirstLine = firstLine
+            viewLastLine = lastLine
+            viewFirstLineStartIndex = fp
+            viewLastLineFinishIndex = lp
+
+            this.inputTextValue = TextFieldValue(annotatedString = annotateText(textLayoutResult), selection = inputSelection)
+        } else {
+            // cannot update
+        }
     }
 
 }

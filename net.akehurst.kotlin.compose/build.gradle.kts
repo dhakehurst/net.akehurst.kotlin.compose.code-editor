@@ -29,7 +29,7 @@ plugins {
 }
 val kotlin_languageVersion = org.jetbrains.kotlin.gradle.dsl.KotlinVersion.KOTLIN_2_1
 val kotlin_apiVersion = org.jetbrains.kotlin.gradle.dsl.KotlinVersion.KOTLIN_2_1
-val jvmTargetVersion = org.jetbrains.kotlin.gradle.dsl.JvmTarget.JVM_1_8
+val jvmTargetVersion = org.jetbrains.kotlin.gradle.dsl.JvmTarget.JVM_11
 
 allprojects {
 
@@ -77,7 +77,7 @@ subprojects {
     }
 
     configure<KotlinMultiplatformExtension> {
-        jvm("jvm8") {
+        jvm {
             val main by compilations.getting {
                 compilerOptions.configure {
                     languageVersion.set(kotlin_languageVersion)
@@ -93,7 +93,7 @@ subprojects {
                 }
             }
         }
-        js("js", IR) {
+        js {
             binaries.library()
             nodejs()
             browser()
@@ -101,7 +101,7 @@ subprojects {
 
         // compose does not support native targets !
 
-        @OptIn(org.jetbrains.kotlin.gradle.targets.js.dsl.ExperimentalWasmDsl::class)
+        @OptIn(org.jetbrains.kotlin.gradle.ExperimentalWasmDsl::class)
         wasmJs() {
             binaries.library()
         }

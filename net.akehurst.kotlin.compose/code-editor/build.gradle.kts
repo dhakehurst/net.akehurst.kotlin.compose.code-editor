@@ -11,7 +11,7 @@ dependencies {
     commonMainImplementation(project(":code-editor-api"))
 
 
-    jvm8TestImplementation(compose.desktop.currentOs)
+    jvmTestImplementation(compose.desktop.currentOs)
 }
 
 compose {

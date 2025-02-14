@@ -15,5 +15,5 @@ data class AutocompleteItemSimple(
     override val text: String,
     override val label: String?
 ) : AutocompleteItem {
-    override fun equalTo(other: AutocompleteItem): Boolean = this.equals(other)
+    override fun equalTo(other: AutocompleteItem): Boolean = this == other
 }

@@ -32,6 +32,7 @@ import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.window.singleWindowApplication
 import net.akehurst.kotlin.compose.editor.CodeEditor
 import net.akehurst.kotlin.compose.editor.CodeEditor2
+import net.akehurst.kotlin.compose.editor.ComposableCodeEditor
 import net.akehurst.kotlin.compose.editor.EditorState
 import net.akehurst.kotlin.compose.editor.EditorState2
 import net.akehurst.kotlin.compose.editor.api.AutocompleteItem
@@ -57,29 +58,16 @@ class test_CodeEditor {
         singleWindowApplication(
             title = "Code Editor Test",
         ) {
-            content()
-        }
-    }
-
-    @Composable
-    fun content() {
-        val editorState = remember {
-            EditorState(
-                initialText = """
+            Surface {
+                ComposableCodeEditor(
+                    initialText = """
                     \red{Hello} \blue{World}
                 """.trimIndent(),
-                //onTextChange = { onTextChange.invoke(it) },
-                getLineTokens = { lineNumber, lineStartPosition, lineText -> getLineTokens(lineNumber, lineStartPosition, lineText) },
-                requestAutocompleteSuggestions = { position, text, result -> requestAutocompleteSuggestions(position, text, result) }
-            )
-        }
+                    getLineTokens = { lineNumber, lineStartPosition, lineText -> getLineTokens(lineNumber, lineStartPosition, lineText) },
+                    requestAutocompleteSuggestions = { position, text, result -> requestAutocompleteSuggestions(position, text, result) }
 
-        Surface {
-            CodeEditor(
-                modifier = Modifier
-                    .fillMaxSize(),
-                editorState = editorState
-            )
+                )
+            }
         }
     }
 

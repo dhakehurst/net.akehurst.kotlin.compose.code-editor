@@ -26,17 +26,12 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.layout.RowScopeInstance.weight
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
-import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.BasicTextField
-import androidx.compose.foundation.text.input.TextFieldCharSequence
 import androidx.compose.foundation.text.input.TextFieldState
 import androidx.compose.foundation.text.input.insert
-import androidx.compose.foundation.text.selection.LocalTextSelectionColors
-import androidx.compose.foundation.text.selection.TextSelectionColors
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
@@ -45,7 +40,6 @@ import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.TextLayoutResult
 import androidx.compose.ui.text.buildAnnotatedString
-import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.round
 import kotlinx.coroutines.CoroutineScope
@@ -199,7 +193,7 @@ class EditorState2(
     var viewLastLineFinishIndex by mutableStateOf(0)
 
     internal val autocompleteState by mutableStateOf(
-        AutocompleteState(
+        AutocompleteStateCompose(
             { this.inputTextFieldState.text },
             { this.inputTextFieldState.selection.start },
             { this.viewCursor.rect.bottomRight.round() },

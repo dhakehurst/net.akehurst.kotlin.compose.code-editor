@@ -27,7 +27,15 @@ interface ComposeCodeEditor {
     var getLineTokens: LineTokensFunction
     var requestAutocompleteSuggestions: AutocompleteFunction
 
+    val autocomplete: AutocompleteState
+
+    fun refreshTokens()
     fun destroy()
+}
+
+interface AutocompleteState {
+    val isVisible: Boolean
+    val isLoading: Boolean
 }
 
 interface EditorLineToken {
