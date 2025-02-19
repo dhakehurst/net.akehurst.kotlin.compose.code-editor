@@ -65,7 +65,7 @@ fun CodeEditor(
     modifier: Modifier = Modifier,
     editorState: EditorState = EditorState(
         initialText = "",
-        defaultTextStyle = SpanStyle(color = MaterialTheme.colorScheme.onBackground),
+        defaultTextStyle = SpanStyle(color = MaterialTheme.colorScheme.onBackground, background = Color.Transparent),
         onTextChange = {},
         getLineTokens = { _, _, _ -> emptyList() },
         requestAutocompleteSuggestions = { _, _, _ -> },
@@ -145,6 +145,11 @@ class EditorState(
 //    val inputTextValue by derivedStateOf(policy = structuralEqualityPolicy()) { TextFieldValue(annotatedString = inputAnnotatedText, selection = inputSelection) }
     var inputTextValue by mutableStateOf(TextFieldValue(initialText))
     val inputRawText get() = inputTextValue.text
+    // skia LineMetrics still broken
+//    val inputLineMetrics by derivedStateOf {
+//        LineMetrics(inputRawText)
+//    }
+
     var lastTextLayoutResult: TextLayoutResult? = null
 
     var viewFirstLine by mutableStateOf(0)
@@ -173,10 +178,13 @@ class EditorState(
         } else {
             buildAnnotatedString {
                 append(newText)
+                var prevState = null
                 for (lineNum in viewFirstLine..viewLastLine) {
                     val lineStartPos = textLayoutResult.getLineStart(lineNum)
                     val lineFinishPos = textLayoutResult.getLineEnd(lineNum)
-                    val lineText = newText.substring(lineStartPos, lineFinishPos)
+                    //val (lineStartPos, lineFinishPos) = inputLineMetrics.lineEnds(lineNum)
+
+                    val lineText = newText.substring(lineStartPos, minOf(lineFinishPos+1,newText.length)) //+1 to get the eol
                     val toks = try {
                         getLineTokens(lineNum, lineStartPos, lineText)
                     } catch (t: Throwable) {

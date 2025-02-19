@@ -29,6 +29,7 @@ import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.text.input.TextFieldState
 import androidx.compose.foundation.text.input.insert
+import androidx.compose.foundation.text.input.setTextAndPlaceCursorAtEnd
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
@@ -40,6 +41,7 @@ import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.TextLayoutResult
 import androidx.compose.ui.text.buildAnnotatedString
+import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.round
 import kotlinx.coroutines.CoroutineScope
@@ -91,16 +93,16 @@ fun CodeEditor2(
         requestAutocompleteSuggestions = { _, _, _ -> },
     )
 ) {
+    val state by remember { mutableStateOf(editorState) }
 
     val scope = rememberCoroutineScope().also {
         editorState.scope = it
         // editorState.currentRecomposeScope = currentRecomposeScope
         //editorState.clipboardManager = LocalClipboardManager.current
     }
-    val state by remember { mutableStateOf(editorState) }
 
     Row(
-        modifier = modifier.weight(1f)
+        modifier = modifier//.weight(1f)
     ) {
         // Margin Annotations
         LazyColumn(
@@ -115,7 +117,7 @@ fun CodeEditor2(
             }
         }
         //Text editing
-        Column(
+        Box(
             modifier = Modifier.fillMaxSize()
         ) {
 
@@ -310,32 +312,44 @@ class EditorState2(
 
     fun annotateText(textLayoutResult: TextLayoutResult): AnnotatedString {
         val rawText = inputTextFieldState.text.toString()
-        return if (Int.MAX_VALUE == inputScrollerViewportSize || 0 == inputScrollerViewportSize) {
-            AnnotatedString(rawText)
-        } else {
-            buildAnnotatedString {
+        return when {
+           // (Int.MAX_VALUE == inputScrollerViewportSize || 0 == inputScrollerViewportSize) -> {
+           //     AnnotatedString(rawText)
+           // }
+
+            else -> {
+                buildAnnotatedString {
 //                addStyle(defaultTextStyle, 0, lp - fp)  // mark whole text with default style
-                append(rawText)
-                for (lineNum in viewFirstLine..viewLastLine) {
-                    val lineStartPos = textLayoutResult.getLineStart(lineNum)
-                    val lineFinishPos = textLayoutResult.getLineEnd(lineNum)
-                    //FIXME: bug on JS getLineEnd does not work - workaround
-                    //val (lineStartPos, lineFinishPos) = inputLineMetrics.lineEnds(lineNum)
-                    val lineText = rawText.substring(lineStartPos, lineFinishPos)
-                    val toks = try {
-                        getLineTokens(lineNum, lineStartPos, lineText)
-                    } catch (t: Throwable) {
-                        //TODO: log error!
-                        println("Error: in getLineTokens ${t.message} ${t.stackTraceToString()}")
-                        emptyList()
-                    }
-                    for (tk in toks) {
-                        val offsetStart = (lineStartPos + tk.start).coerceIn(lineStartPos, lineFinishPos)
-                        val offsetFinish = (lineStartPos + tk.finish).coerceIn(lineStartPos, lineFinishPos)
-                        addStyle(tk.style, offsetStart, offsetFinish)
+                    append(rawText)
+                    for (lineNum in viewFirstLine..viewLastLine) {
+                        val lineStartPos = textLayoutResult.getLineStart(lineNum)
+                        val lineFinishPos = textLayoutResult.getLineEnd(lineNum)
+                        //FIXME: bug on JS getLineEnd does not work - workaround
+                        //val (lineStartPos, lineFinishPos) = inputLineMetrics.lineEnds(lineNum)
+                        val lineText = rawText.substring(lineStartPos, lineFinishPos)
+                        val toks = try {
+                            getLineTokens(lineNum, lineStartPos, lineText)
+                        } catch (t: Throwable) {
+                            //TODO: log error!
+                            println("Error: in getLineTokens ${t.message} ${t.stackTraceToString()}")
+                            emptyList()
+                        }
+                        for (tk in toks) {
+                            val offsetStart = (lineStartPos + tk.start).coerceIn(lineStartPos, lineFinishPos)
+                            val offsetFinish = (lineStartPos + tk.finish).coerceIn(lineStartPos, lineFinishPos)
+                            addStyle(tk.style, offsetStart, offsetFinish)
+                        }
                     }
                 }
             }
         }
+    }
+
+    fun refresh() {
+       // updateViewDetails()
+    }
+
+    fun setNewText(text: String) {
+        this.inputTextFieldState.setTextAndPlaceCursorAtEnd(text)
     }
 }

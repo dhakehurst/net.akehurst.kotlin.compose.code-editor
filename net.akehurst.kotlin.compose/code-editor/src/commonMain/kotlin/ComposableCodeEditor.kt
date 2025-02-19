@@ -54,10 +54,47 @@ class ComposableCodeEditor(
     }
 
     @Composable
-    fun content() {
+    fun content(modifier: Modifier = Modifier.fillMaxSize()) {
         CodeEditor(
-            modifier = Modifier
-                .fillMaxSize(),
+            modifier = modifier,
+            editorState = editorState
+        )
+    }
+
+}
+
+class ComposableCodeEditor2(
+    initialText: String = "",
+    override var onTextChange: (String) -> Unit = {},
+    override var getLineTokens: LineTokensFunction = { _, _, _ -> emptyList() },
+    override var requestAutocompleteSuggestions: AutocompleteFunction = { _, _, _ -> },
+) : ComposeCodeEditor {
+
+    val editorState = EditorState2(
+        initialText = initialText,
+        onTextChange = { onTextChange.invoke(it.toString()) },
+        getLineTokens = { lineNumber, lineStartPosition, lineText -> getLineTokens.invoke(lineNumber, lineStartPosition, lineText) },
+        requestAutocompleteSuggestions = { position, text, result -> requestAutocompleteSuggestions.invoke(position, text, result) }
+    )
+
+    override var text: String
+        get() = editorState.inputRawText.toString()
+        set(value) {
+            editorState.setNewText(value)
+        }
+
+    override val autocomplete: AutocompleteState get() = editorState.autocompleteState
+
+    override fun refreshTokens() = editorState.refresh()
+
+    override fun destroy() {
+        // not sure what is needed here!
+    }
+
+    @Composable
+    fun content(modifier: Modifier = Modifier.fillMaxSize()) {
+        CodeEditor2(
+            modifier = modifier,
             editorState = editorState
         )
     }

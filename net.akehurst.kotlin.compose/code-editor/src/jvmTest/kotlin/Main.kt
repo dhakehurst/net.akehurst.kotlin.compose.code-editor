@@ -33,6 +33,7 @@ import androidx.compose.ui.window.singleWindowApplication
 import net.akehurst.kotlin.compose.editor.CodeEditor
 import net.akehurst.kotlin.compose.editor.CodeEditor2
 import net.akehurst.kotlin.compose.editor.ComposableCodeEditor
+import net.akehurst.kotlin.compose.editor.ComposableCodeEditor2
 import net.akehurst.kotlin.compose.editor.EditorState
 import net.akehurst.kotlin.compose.editor.EditorState2
 import net.akehurst.kotlin.compose.editor.api.AutocompleteItem
@@ -55,18 +56,21 @@ class test_CodeEditor {
 
     @Test
     fun main() {
+
+        var composeEditor = ComposableCodeEditor(
+            initialText = """
+                    \red{Hello} \blue{World}
+                """.trimIndent(),
+            getLineTokens = { lineNumber, lineStartPosition, lineText -> getLineTokens(lineNumber, lineStartPosition, lineText) },
+            requestAutocompleteSuggestions = { position, text, result -> requestAutocompleteSuggestions(position, text, result) }
+
+        )
+
         singleWindowApplication(
             title = "Code Editor Test",
         ) {
             Surface {
-                ComposableCodeEditor(
-                    initialText = """
-                    \red{Hello} \blue{World}
-                """.trimIndent(),
-                    getLineTokens = { lineNumber, lineStartPosition, lineText -> getLineTokens(lineNumber, lineStartPosition, lineText) },
-                    requestAutocompleteSuggestions = { position, text, result -> requestAutocompleteSuggestions(position, text, result) }
-
-                )
+                composeEditor.content()
             }
         }
     }
