@@ -26,12 +26,13 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.layout.RowScopeInstance.weight
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
-//import androidx.compose.foundation.text.MyCoreTextField2
 import androidx.compose.foundation.text.CoreTextField
 import androidx.compose.foundation.text.TextFieldScrollerPosition
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.input.key.*
@@ -43,8 +44,6 @@ import androidx.compose.ui.unit.round
 import kotlinx.coroutines.CoroutineScope
 import net.akehurst.kotlin.compose.editor.api.AutocompleteFunction
 import net.akehurst.kotlin.compose.editor.api.LineTokensFunction
-
-val KeyEvent.isCtrlSpace get() = (key == Key.Spacebar || utf16CodePoint == ' '.code) && isCtrlPressed
 
 
 /*
@@ -76,8 +75,6 @@ fun CodeEditor(
     rememberCoroutineScope().also {
         editorState.scope = it
         editorState.autocompleteState.scope = it
-
-        //editorState.clipboardManager = LocalClipboardManager.current
     }
 
     Row(
@@ -104,12 +101,14 @@ fun CodeEditor(
                 onValueChange = state::onValueChange,
                 modifier = Modifier
                     .fillMaxSize()
-                    //.padding(5.dp,5.dp)
                     .onPreviewKeyEvent { ev -> editorState.handlePreviewKeyEvent(ev) }
-                    .onKeyEvent { ev -> editorState.handleKeyEvent(ev) },
+                    .onKeyEvent { ev -> editorState.handleKeyEvent(ev) }
+                    .focusRequester(state.focusRequester)
+                ,
                 textScrollerPosition = state.inputScrollerPosition,
                 onTextLayout = state::onTextLayout,
                 cursorBrush = SolidColor(Color.Red),
+                focusRequester = state.focusRequester
             )
 
             LaunchedEffect(state.inputScrollerPosition) {
@@ -137,18 +136,12 @@ class EditorState(
 
     var scope: CoroutineScope? = null
     var currentRecomposeScope: RecomposeScope? = null
+    val focusRequester = FocusRequester()
 
     internal val inputScrollerPosition by mutableStateOf(TextFieldScrollerPosition(Orientation.Vertical))
-   // var inputRawText by mutableStateOf(initialText)
     var inputSelection by mutableStateOf(TextRange.Zero)
-//    val inputAnnotatedText by derivedStateOf(policy = structuralEqualityPolicy()) { annotateText(inputRawText) }
-//    val inputTextValue by derivedStateOf(policy = structuralEqualityPolicy()) { TextFieldValue(annotatedString = inputAnnotatedText, selection = inputSelection) }
     var inputTextValue by mutableStateOf(TextFieldValue(initialText))
     val inputRawText get() = inputTextValue.text
-    // skia LineMetrics still broken
-//    val inputLineMetrics by derivedStateOf {
-//        LineMetrics(inputRawText)
-//    }
 
     var lastTextLayoutResult: TextLayoutResult? = null
 
@@ -172,19 +165,19 @@ class EditorState(
     val annotationsState by mutableStateOf(AnnotationState())
 
     private fun annotateText(textLayoutResult: TextLayoutResult): AnnotatedString {
-        val newText = textLayoutResult.layoutInput.text.text
+        val rawText = textLayoutResult.layoutInput.text.text
         return if (0 == inputScrollerPosition.viewportSize) {
-            AnnotatedString(newText)
+            AnnotatedString(rawText)
         } else {
             buildAnnotatedString {
-                append(newText)
+                append(rawText)
                 var prevState = null
                 for (lineNum in viewFirstLine..viewLastLine) {
                     val lineStartPos = textLayoutResult.getLineStart(lineNum)
                     val lineFinishPos = textLayoutResult.getLineEnd(lineNum)
                     //val (lineStartPos, lineFinishPos) = inputLineMetrics.lineEnds(lineNum)
 
-                    val lineText = newText.substring(lineStartPos, minOf(lineFinishPos+1,newText.length)) //+1 to get the eol
+                    val lineText = rawText.substring(lineStartPos, minOf(lineFinishPos+1,rawText.length)) //+1 to get the eol
                     val toks = try {
                         getLineTokens(lineNum, lineStartPos, lineText)
                     } catch (t: Throwable) {

@@ -16,19 +16,24 @@
 
 package net.akehurst.kotlin.compose.editor.api
 
+import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.SpanStyle
 
 typealias LineTokensFunction = ((lineNumber: Int, lineStartPosition: Int, lineText: String) -> List<EditorLineToken>)
 typealias AutocompleteFunction = suspend (position: Int, text: CharSequence, result: AutocompleteSuggestion) -> Unit
 
 interface ComposeCodeEditor {
-    var text: String
+
+    var rawText: String
+    var annotatedText: AnnotatedString
+
     var onTextChange: (String) -> Unit
     var getLineTokens: LineTokensFunction
     var requestAutocompleteSuggestions: AutocompleteFunction
 
     val autocomplete: AutocompleteState
 
+    fun focus()
     fun refreshTokens()
     fun destroy()
 }

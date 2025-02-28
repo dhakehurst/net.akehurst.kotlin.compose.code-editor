@@ -16,26 +16,12 @@
 
 package test
 
-import androidx.compose.foundation.horizontalScroll
-import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.verticalScroll
-import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
-import androidx.compose.runtime.Composable
-import androidx.compose.runtime.remember
-import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.window.singleWindowApplication
-import net.akehurst.kotlin.compose.editor.CodeEditor
-import net.akehurst.kotlin.compose.editor.CodeEditor2
 import net.akehurst.kotlin.compose.editor.ComposableCodeEditor
 import net.akehurst.kotlin.compose.editor.ComposableCodeEditor2
-import net.akehurst.kotlin.compose.editor.EditorState
-import net.akehurst.kotlin.compose.editor.EditorState2
 import net.akehurst.kotlin.compose.editor.api.AutocompleteItem
 import net.akehurst.kotlin.compose.editor.api.AutocompleteSuggestion
 import net.akehurst.kotlin.compose.editor.api.EditorLineToken
@@ -55,7 +41,7 @@ data class AcItem(
 class test_CodeEditor {
 
     @Test
-    fun main() {
+    fun main1() {
 
         var composeEditor = ComposableCodeEditor(
             initialText = """
@@ -75,6 +61,48 @@ class test_CodeEditor {
         }
     }
 
+    @Test
+    fun main2() {
+
+        var composeEditor = ComposableCodeEditor2(
+            initialText = """
+                    \red{Hello} \blue{World}
+                """.trimIndent(),
+            getLineTokens = { lineNumber, lineStartPosition, lineText -> getLineTokens(lineNumber, lineStartPosition, lineText) },
+            requestAutocompleteSuggestions = { position, text, result -> requestAutocompleteSuggestions(position, text, result) }
+
+        )
+
+        singleWindowApplication(
+            title = "Code Editor 2 Test",
+        ) {
+            Surface {
+                composeEditor.content()
+            }
+        }
+    }
+/*
+    @Test
+    fun main3() {
+
+        var composeEditor = ComposableCodeEditor3(
+            initialText = """
+                    \red{Hello} \blue{World}
+                """.trimIndent(),
+            getLineTokens = { lineNumber, lineStartPosition, lineText -> getLineTokens(lineNumber, lineStartPosition, lineText) },
+            requestAutocompleteSuggestions = { position, text, result -> requestAutocompleteSuggestions(position, text, result) }
+
+        )
+
+        singleWindowApplication(
+            title = "Code Editor Test",
+        ) {
+            Surface {
+                composeEditor.content()
+            }
+        }
+    }
+*/
     private fun requestAutocompleteSuggestions(position: Int, text: CharSequence, result: AutocompleteSuggestion) {
         result.provide(listOf(
             AcItem("if"),
@@ -83,7 +111,7 @@ class test_CodeEditor {
     }
 
     fun getLineTokens(lineNumber: Int, lineStartPosition: Int, lineText: String): List<EditorLineToken> {
-       val t1 = Regex("[\\\\]red[{](.*)[}]\"").findAll(lineText).map {
+       val t1 = Regex("[\\\\]red[{](.*)[}]").findAll(lineText).map {
             it.range.first
             object : EditorLineToken {
                 override val start: Int get() = it.range.first

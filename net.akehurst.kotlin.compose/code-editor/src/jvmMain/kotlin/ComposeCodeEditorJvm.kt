@@ -17,6 +17,7 @@
 package net.akehurst.kotlin.compose.editor
 
 import androidx.compose.runtime.Composable
+import androidx.compose.ui.text.AnnotatedString
 import net.akehurst.kotlin.compose.editor.api.*
 
 
@@ -34,18 +35,22 @@ class ComposeCodeEditorJvm(
         requestAutocompleteSuggestions = { position, text, result -> requestAutocompleteSuggestions.invoke(position, text, result) }
     )
 
-    init {
-
-    }
-
-    override var text: String
+    override var rawText: String
         get() = editorState.inputRawText
         set(value) {
             editorState.setNewText(value)
         }
 
+    override var annotatedText: AnnotatedString
+        get() = TODO("not implemented")
+        set(value) {}
+
     override val autocomplete: AutocompleteState
         get() = editorState.autocompleteState
+
+    override fun focus() {
+        editorState.focusRequester.requestFocus()
+    }
 
     override fun destroy() {
 

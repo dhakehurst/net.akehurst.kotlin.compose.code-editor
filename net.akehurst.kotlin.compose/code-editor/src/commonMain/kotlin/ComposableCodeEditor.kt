@@ -17,8 +17,11 @@
 package net.akehurst.kotlin.compose.editor
 
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.material3.TextField
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.text.AnnotatedString
+import androidx.compose.ui.text.buildAnnotatedString
 import net.akehurst.kotlin.compose.editor.api.AutocompleteFunction
 import net.akehurst.kotlin.compose.editor.api.AutocompleteState
 import net.akehurst.kotlin.compose.editor.api.ComposeCodeEditor
@@ -39,13 +42,23 @@ class ComposableCodeEditor(
         requestAutocompleteSuggestions = { position, text, result -> requestAutocompleteSuggestions.invoke(position, text, result) }
     )
 
-    override var text: String
+    override var rawText: String
         get() = editorState.inputRawText
         set(value) {
             editorState.setNewText(value)
         }
 
+    override var annotatedText
+        get() = editorState.lastTextLayoutResult?.layoutInput?.text ?: buildAnnotatedString {  }
+        set(value) {
+
+        }
+
     override val autocomplete: AutocompleteState get() = editorState.autocompleteState
+
+    override fun focus() {
+        editorState.focusRequester.requestFocus()
+    }
 
     override fun refreshTokens() = editorState.refresh()
 
@@ -77,13 +90,23 @@ class ComposableCodeEditor2(
         requestAutocompleteSuggestions = { position, text, result -> requestAutocompleteSuggestions.invoke(position, text, result) }
     )
 
-    override var text: String
+    override var rawText: String
         get() = editorState.inputRawText.toString()
         set(value) {
             editorState.setNewText(value)
         }
 
+    override var annotatedText
+        get() = editorState.lastTextLayoutResult?.layoutInput?.text ?: buildAnnotatedString {  }
+        set(value) {
+
+        }
+
     override val autocomplete: AutocompleteState get() = editorState.autocompleteState
+
+    override fun focus() {
+        editorState.giveFocus = true
+    }
 
     override fun refreshTokens() = editorState.refresh()
 
@@ -100,3 +123,46 @@ class ComposableCodeEditor2(
     }
 
 }
+/*
+class ComposableCodeEditor3(
+    initialText: String = "",
+    override var onTextChange: (String) -> Unit = {},
+    override var getLineTokens: LineTokensFunction = { _, _, _ -> emptyList() },
+    override var requestAutocompleteSuggestions: AutocompleteFunction = { _, _, _ -> },
+) : ComposeCodeEditor {
+
+    val editorState = EditorState3(
+        initialText = initialText,
+        onTextChange = { onTextChange.invoke(it.toString()) },
+        getLineTokens = { lineNumber, lineStartPosition, lineText -> getLineTokens.invoke(lineNumber, lineStartPosition, lineText) },
+        requestAutocompleteSuggestions = { position, text, result -> requestAutocompleteSuggestions.invoke(position, text, result) }
+    )
+
+    override var text: String
+        get() = editorState.inputRawText.toString()
+        set(value) {
+            editorState.setNewText(value)
+        }
+
+    override val autocomplete: AutocompleteState get() = editorState.autocompleteState
+
+    override fun focus() {
+        editorState.focusRequester.requestFocus()
+    }
+
+    override fun refreshTokens() = editorState.refresh()
+
+    override fun destroy() {
+        // not sure what is needed here!
+    }
+
+    @Composable
+    fun content(modifier: Modifier = Modifier.fillMaxSize()) {
+        CodeEditor3(
+            modifier = modifier,
+            editorState = editorState
+        )
+    }
+
+}
+*/

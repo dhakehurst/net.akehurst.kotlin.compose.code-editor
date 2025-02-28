@@ -19,6 +19,7 @@ package net.akehurst.kotlin.compose.editor
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.ui.ExperimentalComposeUiApi
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.window.CanvasBasedWindow
 import net.akehurst.kotlin.compose.editor.api.*
 import org.jetbrains.skiko.wasm.onWasmReady
@@ -65,14 +66,22 @@ class ComposeCodeEditorJs(
         }
     }
 
-    override var text: String
+    override var rawText: String
         get() = editorState.inputRawText
         set(value) {
             editorState.setNewText(value)
         }
 
+    override var annotatedText: AnnotatedString
+        get() = TODO("not implemented")
+        set(value) {}
+
     override val autocomplete: AutocompleteState
         get() = editorState.autocompleteState
+
+    override fun focus() {
+        editorState.focusRequester.requestFocus()
+    }
 
     override fun destroy() {
         canvas.remove()
