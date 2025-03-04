@@ -86,7 +86,7 @@ fun CodeEditor(
                 .fillMaxHeight()
                 .background(color = Color.Transparent)
         ) {
-            itemsIndexed(state.annotationsState.annotations) { idx, ann ->
+            itemsIndexed(state.marginItemsState.items) { idx, ann ->
                 Row(
                 ) { }
             }
@@ -162,7 +162,7 @@ class EditorState(
     )
     val autocompleteOffset by mutableStateOf(IntOffset(-1, -1))
 
-    val annotationsState by mutableStateOf(AnnotationState())
+    val marginItemsState by mutableStateOf(MarginItemsState())
 
     private fun annotateText(textLayoutResult: TextLayoutResult): AnnotatedString {
         val rawText = textLayoutResult.layoutInput.text.text

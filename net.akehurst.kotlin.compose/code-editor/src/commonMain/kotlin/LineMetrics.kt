@@ -17,7 +17,7 @@
 package net.akehurst.kotlin.compose.editor
 
 class LineMetrics(
-    initialText: String
+    initialText: CharSequence
 ) {
     companion object {
         val eol = Regex("\n")
@@ -26,7 +26,7 @@ class LineMetrics(
     //private val mutex = Mutex()
     private var lineEndsAt = eol.findAll(initialText).toList()
 
-    private val lineCount get() = lineEndsAt.size + 1
+    val lineCount get() = lineEndsAt.size + 1
     val firstPosition = 0
     var lastPosition = initialText.length; private set
 

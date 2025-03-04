@@ -16,6 +16,8 @@
 
 package net.akehurst.kotlin.compose.editor.api
 
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.SpanStyle
 
@@ -33,14 +35,25 @@ interface ComposeCodeEditor {
 
     val autocomplete: AutocompleteState
 
+    /**
+     * indicators that sit in the margin next to a specific line
+     */
+    val marginItems: List<MarginItem>
+
     fun focus()
     fun refreshTokens()
     fun destroy()
+    fun clearMarginItems()
+    fun addMarginItem(lineNumber: Int, kind: String, text: String, icon: ImageVector, color: Color)
+    fun clearTextMarkers()
+    fun addTextMarker(position:Int, length:Int, style: SpanStyle)
 }
 
 interface AutocompleteState {
     val isVisible: Boolean
     val isLoading: Boolean
+
+    fun clear()
 }
 
 interface EditorLineToken {
@@ -77,4 +90,12 @@ interface AutocompleteItem {
 
 interface AutocompleteSuggestion {
     fun provide(items: List<AutocompleteItem>)
+}
+
+interface MarginItem {
+    val lineNumber: Int
+    val kind: String
+    val text: String
+    val icon: ImageVector
+    val color: Color
 }

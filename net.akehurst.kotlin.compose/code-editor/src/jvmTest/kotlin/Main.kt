@@ -16,9 +16,16 @@
 
 package test
 
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.outlined.Info
+import androidx.compose.material.icons.outlined.Warning
 import androidx.compose.material3.Surface
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.ExperimentalTextApi
+import androidx.compose.ui.text.PlatformSpanStyle
 import androidx.compose.ui.text.SpanStyle
+import androidx.compose.ui.text.TextDecorationLineStyle
+import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.window.singleWindowApplication
 import net.akehurst.kotlin.compose.editor.ComposableCodeEditor
 import net.akehurst.kotlin.compose.editor.ComposableCodeEditor2
@@ -61,6 +68,7 @@ class test_CodeEditor {
         }
     }
 
+    @OptIn(ExperimentalTextApi::class)
     @Test
     fun main2() {
 
@@ -72,6 +80,26 @@ class test_CodeEditor {
             requestAutocompleteSuggestions = { position, text, result -> requestAutocompleteSuggestions(position, text, result) }
 
         )
+        val info = Regex("info")
+        val err = Regex("error")
+        val wavyStyle = PlatformSpanStyle(textDecorationLineStyle = TextDecorationLineStyle.Wavy)
+        composeEditor.onTextChange =  {
+            composeEditor.clearMarginItems()
+            composeEditor.clearTextMarkers()
+            it.split("\n").forEachIndexed {  idx, ln ->
+                when {
+                    ln.contains("info") ->  composeEditor.addMarginItem(idx, "Info", "Some info", Icons.Outlined.Info, Color.Blue)
+                    ln.contains("error") ->  composeEditor.addMarginItem(idx, "Error", "Some error", Icons.Outlined.Warning, Color.Red)
+                }
+            }
+
+            info.findAll(it).forEach {
+                composeEditor.addTextMarker(it.range.start,it.range.endInclusive-it.range.start+1, SpanStyle(color = Color.Blue, textDecoration = TextDecoration.Underline, platformStyle = wavyStyle))
+            }
+            err.findAll(it).forEach {
+                composeEditor.addTextMarker(it.range.start,it.range.endInclusive-it.range.start+1, SpanStyle(color = Color.Red, textDecoration = TextDecoration.Underline,platformStyle = wavyStyle))
+            }
+        }
 
         singleWindowApplication(
             title = "Code Editor 2 Test",

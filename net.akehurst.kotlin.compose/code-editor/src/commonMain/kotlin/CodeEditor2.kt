@@ -22,38 +22,40 @@ package net.akehurst.kotlin.compose.editor
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.ScrollState
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.hoverable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsFocusedAsState
+import androidx.compose.foundation.interaction.collectIsHoveredAsState
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.layout.RowScopeInstance.weight
-import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.text.input.InputTransformation
-import androidx.compose.foundation.text.input.InputTransformation.Companion.transformInput
+import androidx.compose.foundation.text.input.TextFieldBuffer
 import androidx.compose.foundation.text.input.TextFieldState
 import androidx.compose.foundation.text.input.insert
 import androidx.compose.foundation.text.input.setTextAndPlaceCursorAtEnd
+import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.TextField
+import androidx.compose.material3.Text
 import androidx.compose.runtime.*
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
-import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.key.*
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.TextLayoutResult
+import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.buildAnnotatedString
-import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.round
+import androidx.compose.ui.zIndex
 import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.launch
 import net.akehurst.kotlin.compose.editor.api.AutocompleteFunction
 import net.akehurst.kotlin.compose.editor.api.LineTokensFunction
 
@@ -104,8 +106,8 @@ fun CodeEditor2(
         requestAutocompleteSuggestions = { _, _, _ -> },
     )
 ) {
+    val MARGIN_WIDTH = 20.dp
     val state by remember { mutableStateOf(editorState) }
-    val interactionSource = remember { MutableInteractionSource() }
 
     rememberCoroutineScope().also {
         editorState.scope = it
@@ -116,52 +118,76 @@ fun CodeEditor2(
         modifier = modifier//.weight(1f)
     ) {
         // Margin Annotations
-        LazyColumn(
+        Box(
             modifier = Modifier
-                .width(20.dp)
+                .width(MARGIN_WIDTH)
                 .fillMaxHeight()
-                .background(color = Color.Transparent)
+                .background(color = MaterialTheme.colorScheme.surfaceVariant)
+                .wrapContentWidth(unbounded = true, align = Alignment.Start)
+                //.graphicsLayer { clip=false }
+                .zIndex(1f)
+            ,
         ) {
-            itemsIndexed(state.annotationsState.annotations) { idx, ann ->
-                Row(
-                ) { }
+            state.lastTextLayoutResult?.let { textLayoutResult ->
+                for (ann in state.marginItemsVisible) {
+                    Icon(
+                        ann.icon, contentDescription = ann.text, tint = ann.color,
+                        modifier = Modifier
+                            .width(MARGIN_WIDTH)
+                            .offset(y = ann.offsetFromTopOfViewport(state.viewFirstLine, textLayoutResult))
+                            .hoverable(ann.interactionSource)
+                    )
+                    ann.isHovered = ann.interactionSource.collectIsHoveredAsState().value
+                }
+                state.marginItemHovered.forEach { ann ->
+                    Text(
+                        ann.text, modifier = Modifier
+                            .offset(y = ann.offsetFromTopOfViewport(state.viewFirstLine, textLayoutResult)+(MARGIN_WIDTH/2), x = MARGIN_WIDTH/2)
+                            .background(color = MaterialTheme.colorScheme.surfaceVariant)
+                            .border(1.dp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            .hoverable(ann.interactionSource)
+                    )
+                }
             }
         }
         //Text editing
         Box(
-            modifier = Modifier.fillMaxSize()
+            modifier = Modifier
+                .fillMaxSize()
+                .background(color = MaterialTheme.colorScheme.surface),
         ) {
 
             BasicTextField(
 //            TextField(
-                // cursorBrush = SolidColor(Color.Red),
-                //                    textStyle = TextStyle(color = Color.Transparent),
-                state = editorState.inputTextFieldState,
+                cursorBrush = SolidColor(MaterialTheme.colorScheme.onSurface),
+                textStyle = TextStyle(color = MaterialTheme.colorScheme.onSurface),
+                state = state.inputTextFieldState,
                 modifier = Modifier
                     .fillMaxSize()
-                    .onPreviewKeyEvent { ev -> editorState.handlePreviewKeyEvent(ev) }
-                    .onKeyEvent { ev -> editorState.handleKeyEvent(ev) }
+                    .onPreviewKeyEvent { ev -> state.handlePreviewKeyEvent(ev) }
+                    .onKeyEvent { ev -> state.handleKeyEvent(ev) }
                     .focusRequester(state.focusRequester),
                 onTextLayout = { r ->
-                    r.invoke()?.let { editorState.onInputTextLayout(it) }
+                    r.invoke()?.let { state.onInputTextLayout(it) }
                 },
-                scrollState = editorState.inputScrollState,
-                interactionSource = interactionSource,
+                scrollState = state.inputScrollState,
+                interactionSource = state.interactionSource,
+                inputTransformation = state.inputTransformation,
             )
 
             // to invoke the 'onTextChange' callback when text changes
-            LaunchedEffect(editorState.inputTextFieldState) {
-                snapshotFlow { editorState.inputTextFieldState.value }.collect { editorState.onInputChange() }
+            LaunchedEffect(state.inputRawText) {
+                snapshotFlow { state.inputRawText }.collect { state.onInputChange(it) }
             }
 
-//            LaunchedEffect(editorState.inputScrollState) {
-//                snapshotFlow { editorState.inputScrollState.value }.collect { editorState.onInputScroll() }
-//            }
+            LaunchedEffect(state.inputScrollState.value) {
+                snapshotFlow { state.inputScrollState }.collect { state.onInputScroll(it) }
+            }
 
             SideEffect {
-                if (editorState.giveFocus) {
-                    editorState.focusRequester.requestFocus()
-                    editorState.giveFocus = false
+                if (state.giveFocus) {
+                    state.focusRequester.requestFocus()
+                    state.giveFocus = false
                 }
             }
 
@@ -171,7 +197,7 @@ fun CodeEditor2(
         }
     }
 
-    state.isFocused = interactionSource.collectIsFocusedAsState().value
+    state.isFocused = state.interactionSource.collectIsFocusedAsState().value
 }
 
 
@@ -183,25 +209,31 @@ class EditorState2(
     requestAutocompleteSuggestions: AutocompleteFunction = { _, _, _ -> }
 ) {
     var scope: CoroutineScope? = null
-    val annotationsState by mutableStateOf(AnnotationState())
+
+    val interactionSource = MutableInteractionSource()
     var giveFocus = false
     var isFocused = false
     val focusRequester by mutableStateOf(FocusRequester())
 
     val inputTextFieldState by mutableStateOf(TextFieldState(initialText))
-    val inputRawText get() = inputTextFieldState.text
+    val inputRawText by derivedStateOf { inputTextFieldState.text }
+    var lastAnnotatedText: AnnotatedString? = null
     val inputScrollState by mutableStateOf(ScrollState(0))
-    val inputScrollerViewportSize get() = inputScrollState.maxValue// viewportSize
-    val inputScrollerOffset get() = inputScrollState.value
+    // val inputScrollerViewportSize get() = inputScrollState.maxValue// viewportSize
+    // val inputScrollerOffset get() = inputScrollState.value
 
     // so we can get the annotatedstring
     var lastTextLayoutResult: TextLayoutResult? = null
 
     val viewCursor by mutableStateOf(CursorDetails(SolidColor(Color.Red)))
-    // var viewFirstLine by mutableStateOf(0)
-    // var viewLastLine by mutableStateOf(0)
-    //var viewFirstLineStartIndex by mutableStateOf(0)
-    //var viewLastLineFinishIndex by mutableStateOf(0)
+    var viewFirstLine by mutableStateOf(0)
+    var viewLastLine by mutableStateOf(0)
+    var viewFirstLineStartTextPosition by mutableStateOf(0)
+    var viewLastLineFinishTextPosition by mutableStateOf(0)
+
+    val inputTransformation = InputTransformation({
+        annotateTextFieldBuffer(this)
+    })
 
     internal val autocompleteState by mutableStateOf(
         AutocompleteStateCompose(
@@ -212,6 +244,19 @@ class EditorState2(
             requestAutocompleteSuggestions
         )
     )
+
+    val marginItemsState by mutableStateOf(MarginItemsState())
+    val marginItemsVisible by derivedStateOf {
+        marginItemsState.items.filter { viewFirstLine <= it.lineNumber && it.lineNumber <= viewLastLine }
+    }
+    val marginItemHovered by derivedStateOf {
+        marginItemsState.items.filter { it.isHovered }
+    }
+
+    val textMarkersState by mutableStateOf(TextMarkerState())
+    val textMarkersVisible by derivedStateOf {
+        textMarkersState.markers.filter { viewFirstLineStartTextPosition <= it.position && it.position <= viewLastLineFinishTextPosition }
+    }
 
     fun handlePreviewKeyEvent(ev: KeyEvent): Boolean {
         //println("$ev ${ev.key} ${ev.key.keyCode}")
@@ -249,34 +294,38 @@ class EditorState2(
         }
     }
 
-    fun onInputChange() {
-        onTextChange(inputTextFieldState.text)
+    fun onInputChange(newText: CharSequence) {
+        onTextChange(newText)
     }
 
-    fun onInputScroll() {
-        //   if (null != lastTextLayoutResult) {
-        //updateViewDetails(lastTextLayoutResult!!)
-        //    }
+    fun onInputScroll(i: ScrollState) {
+        if (null != lastTextLayoutResult) {
+            updateViewDetails(lastTextLayoutResult!!)
+        }
     }
 
     fun onInputTextLayout(textLayoutResult: TextLayoutResult) {
+        updateViewDetails(textLayoutResult)
         lastTextLayoutResult = textLayoutResult
-        val rawText = textLayoutResult.layoutInput.text.text
-        if (rawText.length > 0) {
-            val annText = annotateText(textLayoutResult)
-            val sel = inputTextFieldState.selection
-            val tr = InputTransformation({
-                this.setComposition(0, rawText.length, annText.annotations)
-                this.selection = sel
-            })
-            inputTextFieldState.editAsUser(tr) {
-                this.setComposition(0, rawText.length, annText.annotations)
-            }
-        }
-        //println("onTextLayout $sel")
-        // updateViewDetails(textLayoutResult)
+        /*
+                val rawText = textLayoutResult.layoutInput.text.text
+                if (rawText.length > 0) {
+                    val annText = annotateText(textLayoutResult)
+                    val sel = inputTextFieldState.selection
+                    val tr = InputTransformation({
+                        this.setComposition(0, rawText.length, annText.annotations)
+                        this.selection = sel
+                    })
+                    inputTextFieldState.editAsUser(tr) {
+                        this.setComposition(0, rawText.length, annText.annotations)
+                    }
+                }
+        */
     }
 
+    // The line metrics from TextLayoutResult are related to the 'layout' of the text
+    // i.e. if the line wraps, the metrics indicate an extra line.
+    // We want line metrics where the lines are indicated by user input of EOL characters!
     fun annotateText(textLayoutResult: TextLayoutResult): AnnotatedString {
         val rawText = textLayoutResult.layoutInput.text.text
         return when {
@@ -291,10 +340,10 @@ class EditorState2(
                     viewFirstLine = 0
                     viewLastLine = textLayoutResult.lineCount - 1
                 } else {
-                    val st = inputScrollerOffset.toFloat()
-                    val len = inputScrollerViewportSize
-                    val firstLine = textLayoutResult.getLineForVerticalPosition(st)
-                    val lastLine = textLayoutResult.getLineForVerticalPosition(st + len)
+                    //val st = inputScrollerOffset.toFloat()
+                    //val len = inputScrollerViewportSize
+                    val firstLine = viewFirstLine//textLayoutResult.getLineForVerticalPosition(st)
+                    val lastLine = viewLastLine//textLayoutResult.getLineForVerticalPosition(st + len)
                     viewFirstLine = firstLine
                     viewLastLine = lastLine
                 }
@@ -327,11 +376,95 @@ class EditorState2(
         }
     }
 
+    fun annotateText2(rawText: CharSequence): AnnotatedString {
+        //val textLayoutResult = lastTextLayoutResult
+        // val rawText = inputRawText
+        return if (rawText.isEmpty()) {
+            AnnotatedString(rawText.toString())
+        } else {
+            val lineMetrics = LineMetrics(rawText)
+            var viewFirstLine = -1
+            var viewLastLine = -1
+            if (0 == this.inputScrollState.viewportSize) {
+                viewFirstLine = 0
+                viewLastLine = lineMetrics.lineCount - 1
+            } else {
+                //val st = inputScrollerOffset.toFloat()
+                //val len = inputScrollerViewportSize
+                val firstLine = viewFirstLine//textLayoutResult.getLineForVerticalPosition(st)
+                val lastLine = viewLastLine//textLayoutResult.getLineForVerticalPosition(st + len)
+                viewFirstLine = firstLine
+                viewLastLine = lastLine
+            }
+
+            buildAnnotatedString {
+//                addStyle(defaultTextStyle, 0, lp - fp)  // mark whole text with default style
+                append(rawText)
+
+                // annotate from tokens
+                for (lineNum in viewFirstLine..viewLastLine) {
+                    //val lineStartPos = textLayoutResult.getLineStart(lineNum)
+                    // val lineFinishPos = textLayoutResult.getLineEnd(lineNum)
+                    //FIXME: bug on JS getLineEnd does not work - workaround
+                    val (lineStartPos, lineFinishPos) = lineMetrics.lineEnds(lineNum)
+//                        val lineText = rawText.substring(lineStartPos, lineFinishPos)
+                    val lineText = rawText.substring(lineStartPos, minOf(lineFinishPos + 1, rawText.length)) //+1 to get the eol
+                    val toks = try {
+                        getLineTokens(lineNum, lineStartPos, lineText)
+                    } catch (t: Throwable) {
+                        //TODO: log error!
+                        println("Error: in getLineTokens ${t.message} ${t.stackTraceToString()}")
+                        emptyList()
+                    }
+                    for (tk in toks) {
+                        val offsetStart = (lineStartPos + tk.start).coerceIn(lineStartPos, lineFinishPos)
+                        val offsetFinish = (lineStartPos + tk.finish).coerceIn(lineStartPos, lineFinishPos)
+                        addStyle(tk.style, offsetStart, offsetFinish)
+                    }
+                }
+
+                // annotate from markers
+                for (marker in textMarkersVisible) {
+                    val lineNum = lineMetrics.lineForPosition(marker.position)
+                   // println("Marker at: ${marker.position} length ${marker.length} line $lineNum")
+                   // val (lineStartPos, lineFinishPos) = lineMetrics.lineEnds(lineNum)
+                    val offsetStart = (marker.position).coerceIn(0, rawText.length)
+                    val offsetFinish = (marker.position + marker.length).coerceIn(0, rawText.length)
+                   // println("Style at: ${offsetStart} .. ${offsetFinish}")
+                    addStyle(marker.style, offsetStart, offsetFinish)
+                }
+            }
+        }
+    }
+
     fun refresh() {
-        lastTextLayoutResult?.let{ onInputTextLayout(it) }
+        // lastTextLayoutResult?.let { onInputTextLayout(it) }
+        inputTextFieldState.editAsUser(InputTransformation({})) {
+            annotateTextFieldBuffer(this)
+        }
     }
 
     fun setNewText(text: String) {
         this.inputTextFieldState.setTextAndPlaceCursorAtEnd(text)
+    }
+
+    private fun annotateTextFieldBuffer(buffer: TextFieldBuffer) {
+        val rawText = buffer.asCharSequence()
+        if (rawText.isNotEmpty()) {
+            //val sel = buffer.selection
+            lastAnnotatedText = annotateText2(rawText)
+            buffer.setComposition(0, rawText.length, lastAnnotatedText.annotations)
+            // buffer.selection = sel
+        }
+    }
+
+    private fun updateViewDetails(textLayoutResult: TextLayoutResult) {
+        val st = inputScrollState.value.toFloat()
+        val len = 500 //inputScrollState.viewportSize
+        viewFirstLine = textLayoutResult.getLineForVerticalPosition(st)
+        viewLastLine = textLayoutResult.getLineForVerticalPosition(st + len)
+        viewFirstLineStartTextPosition = textLayoutResult.getLineStart(viewFirstLine)
+        viewLastLineFinishTextPosition = textLayoutResult.getLineEnd(viewLastLine)
+        //println("View: $viewFirstLine $viewLastLine")
     }
 }

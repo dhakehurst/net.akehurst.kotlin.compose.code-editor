@@ -73,13 +73,13 @@ internal fun AutocompletePopup(
                     itemsIndexed(state.items) { idx, item ->
                         Row(
                             modifier = Modifier
-                                .background(color = if (state.isSelected(idx)) MaterialTheme.colorScheme.onBackground else Color.Transparent)
+                                .background(color = if (state.isSelected(idx)) MaterialTheme.colorScheme.surfaceVariant else Color.Transparent)
                                 .padding(top = 2.dp, bottom = 3.dp, start = 2.dp, end = 2.dp)
                                 .onClick(
                                     onClick = { state.choose(item) },
                                 )
                         ) {
-                            Text(item.text.fixLength(15))
+                            Text(item.text.fixLength(15), color = if (state.isSelected(idx)) MaterialTheme.colorScheme.onSurfaceVariant else MaterialTheme.colorScheme.onSurface)
                             Spacer(Modifier.width(20.dp))
                             item.label?.let {
                                 Text("(${it.fixLength(10)})")
@@ -126,6 +126,10 @@ internal class AutocompleteStateCompose(
         isVisible = true
         isLoading = true
         requestSuggestions()
+    }
+
+    override fun clear() {
+        items.clear()
     }
 
     fun scrollToSelected() {

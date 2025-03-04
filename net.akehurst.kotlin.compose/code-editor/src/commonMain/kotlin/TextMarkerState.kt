@@ -16,13 +16,26 @@
 
 package net.akehurst.kotlin.compose.editor
 
-import androidx.compose.runtime.Stable
 import androidx.compose.runtime.mutableStateListOf
-import net.akehurst.kotlin.compose.editor.api.AutocompleteItem
+import androidx.compose.ui.text.SpanStyle
+import androidx.compose.ui.text.StringAnnotation
 
-@Stable
-class AnnotationState {
+data class TextMarkerDefault(
+    val position:Int,
+    val length:Int,
+    val style:SpanStyle
+)
 
-    var annotations = mutableStateListOf<AutocompleteItem>()
+class TextMarkerState {
+
+    val markers = mutableStateListOf<TextMarkerDefault>()
+
+    fun clear() {
+        markers.clear()
+    }
+
+    fun addMarker(position: Int, length: Int, style: SpanStyle) {
+        markers.add(TextMarkerDefault(position, length, style))
+    }
 
 }

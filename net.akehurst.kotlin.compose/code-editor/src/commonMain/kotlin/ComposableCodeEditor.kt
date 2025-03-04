@@ -17,16 +17,17 @@
 package net.akehurst.kotlin.compose.editor
 
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.material3.TextField
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.text.AnnotatedString
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.buildAnnotatedString
 import net.akehurst.kotlin.compose.editor.api.AutocompleteFunction
 import net.akehurst.kotlin.compose.editor.api.AutocompleteState
 import net.akehurst.kotlin.compose.editor.api.ComposeCodeEditor
 import net.akehurst.kotlin.compose.editor.api.LineTokensFunction
-
+import net.akehurst.kotlin.compose.editor.api.MarginItem
 
 class ComposableCodeEditor(
     initialText: String = "",
@@ -49,12 +50,14 @@ class ComposableCodeEditor(
         }
 
     override var annotatedText
-        get() = editorState.lastTextLayoutResult?.layoutInput?.text ?: buildAnnotatedString {  }
+        get() = editorState.lastTextLayoutResult?.layoutInput?.text ?: buildAnnotatedString { }
         set(value) {
 
         }
 
     override val autocomplete: AutocompleteState get() = editorState.autocompleteState
+
+    override val marginItems: List<MarginItem> get() = editorState.marginItemsState.items
 
     override fun focus() {
         editorState.focusRequester.requestFocus()
@@ -64,6 +67,22 @@ class ComposableCodeEditor(
 
     override fun destroy() {
         // not sure what is needed here!
+    }
+
+    override fun clearMarginItems() {
+        editorState.marginItemsState.clear()
+    }
+
+    override fun addMarginItem(lineNumber: Int, kind:String, text: String, icon: ImageVector, color: Color) {
+        editorState.marginItemsState.addAnnotation(lineNumber, kind, text, icon,color)
+    }
+
+    override fun clearTextMarkers() {
+        TODO("not implemented")
+    }
+
+    override fun addTextMarker(position: Int, length: Int, style: SpanStyle) {
+        TODO("not implemented")
     }
 
     @Composable
@@ -97,12 +116,14 @@ class ComposableCodeEditor2(
         }
 
     override var annotatedText
-        get() = editorState.lastTextLayoutResult?.layoutInput?.text ?: buildAnnotatedString {  }
+        get() = editorState.lastAnnotatedText ?: buildAnnotatedString { }
         set(value) {
 
         }
 
     override val autocomplete: AutocompleteState get() = editorState.autocompleteState
+
+    override val marginItems: List<MarginItem> get() = editorState.marginItemsState.items
 
     override fun focus() {
         editorState.giveFocus = true
@@ -112,6 +133,22 @@ class ComposableCodeEditor2(
 
     override fun destroy() {
         // not sure what is needed here!
+    }
+
+    override fun clearMarginItems() {
+        editorState.marginItemsState.clear()
+    }
+
+    override fun addMarginItem(lineNumber: Int,kind:String, text: String, icon: ImageVector, color: Color) {
+        editorState.marginItemsState.addAnnotation(lineNumber,kind, text, icon,color)
+    }
+
+    override fun clearTextMarkers() {
+        editorState.textMarkersState.clear()
+    }
+
+    override fun addTextMarker(position: Int, length: Int, style: SpanStyle) {
+        editorState.textMarkersState.addMarker(position, length, style)
     }
 
     @Composable
