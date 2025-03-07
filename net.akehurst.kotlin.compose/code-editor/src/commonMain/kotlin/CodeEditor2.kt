@@ -29,7 +29,7 @@ import androidx.compose.foundation.interaction.collectIsFocusedAsState
 import androidx.compose.foundation.interaction.collectIsHoveredAsState
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.text.BasicTextField
-import androidx.compose.foundation.text.input.InputTransformation
+import androidx.compose.foundation.text.input.OutputTransformation
 import androidx.compose.foundation.text.input.TextFieldBuffer
 import androidx.compose.foundation.text.input.TextFieldState
 import androidx.compose.foundation.text.input.insert
@@ -45,7 +45,6 @@ import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
-import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.key.*
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.SpanStyle
@@ -124,7 +123,6 @@ fun CodeEditor2(
                 .fillMaxHeight()
                 .background(color = MaterialTheme.colorScheme.surfaceVariant)
                 .wrapContentWidth(unbounded = true, align = Alignment.Start)
-                //.graphicsLayer { clip=false }
                 .zIndex(1f)
             ,
         ) {
@@ -172,7 +170,8 @@ fun CodeEditor2(
                 },
                 scrollState = state.inputScrollState,
                 interactionSource = state.interactionSource,
-                inputTransformation = state.inputTransformation,
+                //inputTransformation = state.inputTransformation,
+                outputTransformation = state.outputTransformation
             )
 
             // to invoke the 'onTextChange' callback when text changes
@@ -208,6 +207,54 @@ class EditorState2(
     var getLineTokens: LineTokensFunction = { _, _, _ -> emptyList() },
     requestAutocompleteSuggestions: AutocompleteFunction = { _, _, _ -> }
 ) {
+    companion object {
+        fun annotateText(rawText: CharSequence, viewFirstLine: Int, viewLastLine: Int, getLineTokens: LineTokensFunction, markers: List<TextMarkerDefault>): AnnotatedString {
+            //val textLayoutResult = lastTextLayoutResult
+            // val rawText = inputRawText
+            return if (rawText.isEmpty()) {
+                AnnotatedString(rawText.toString())
+            } else {
+                val lineMetrics = LineMetrics(rawText)
+                buildAnnotatedString {
+//                addStyle(defaultTextStyle, 0, lp - fp)  // mark whole text with default style
+                    append(rawText)
+                    // annotate from tokens
+                    for (lineNum in viewFirstLine..viewLastLine) {
+                        //val lineStartPos = textLayoutResult.getLineStart(lineNum)
+                        // val lineFinishPos = textLayoutResult.getLineEnd(lineNum)
+                        //FIXME: bug on JS getLineEnd does not work - workaround
+                        val (lineStartPos, lineFinishPos) = lineMetrics.lineEnds(lineNum)
+//                        val lineText = rawText.substring(lineStartPos, lineFinishPos)
+                        val lineText = rawText.substring(lineStartPos, minOf(lineFinishPos + 1, rawText.length)) //+1 to get the eol
+                        val toks = try {
+                            getLineTokens(lineNum, lineStartPos, lineText)
+                        } catch (t: Throwable) {
+                            //TODO: log error!
+                            println("Error: in getLineTokens ${t.message} ${t.stackTraceToString()}")
+                            emptyList()
+                        }
+                        for (tk in toks) {
+                            val offsetStart = (lineStartPos + tk.start).coerceIn(lineStartPos, lineFinishPos)
+                            val offsetFinish = (lineStartPos + tk.finish).coerceIn(lineStartPos, lineFinishPos)
+                            addStyle(tk.style, offsetStart, offsetFinish)
+                        }
+                    }
+
+                    // annotate from markers
+                    for (marker in markers) {
+                        val lineNum = lineMetrics.lineForPosition(marker.position)
+                        // println("Marker at: ${marker.position} length ${marker.length} line $lineNum")
+                        // val (lineStartPos, lineFinishPos) = lineMetrics.lineEnds(lineNum)
+                        val offsetStart = (marker.position).coerceIn(0, rawText.length)
+                        val offsetFinish = (marker.position + marker.length).coerceIn(0, rawText.length)
+                        // println("Style at: ${offsetStart} .. ${offsetFinish}")
+                        addStyle(marker.style, offsetStart, offsetFinish)
+                    }
+                }
+            }
+        }
+    }
+
     var scope: CoroutineScope? = null
 
     val interactionSource = MutableInteractionSource()
@@ -231,7 +278,10 @@ class EditorState2(
     var viewFirstLineStartTextPosition by mutableStateOf(0)
     var viewLastLineFinishTextPosition by mutableStateOf(0)
 
-    val inputTransformation = InputTransformation({
+    //val inputTransformation = InputTransformation({
+   //     annotateTextFieldBuffer(this)
+   // })
+    val outputTransformation = OutputTransformation({
         annotateTextFieldBuffer(this)
     })
 
@@ -321,141 +371,21 @@ class EditorState2(
                     }
                 }
         */
-    }
 
-    // The line metrics from TextLayoutResult are related to the 'layout' of the text
-    // i.e. if the line wraps, the metrics indicate an extra line.
-    // We want line metrics where the lines are indicated by user input of EOL characters!
-    fun annotateText(textLayoutResult: TextLayoutResult): AnnotatedString {
-        val rawText = textLayoutResult.layoutInput.text.text
-        return when {
-            // (Int.MAX_VALUE == inputScrollerViewportSize || 0 == inputScrollerViewportSize) -> {
-            //     AnnotatedString(rawText)
-            // }
-
-            else -> {
-                var viewFirstLine = -1
-                var viewLastLine = -1
-                if (0 == this.inputScrollState.viewportSize) {
-                    viewFirstLine = 0
-                    viewLastLine = textLayoutResult.lineCount - 1
-                } else {
-                    //val st = inputScrollerOffset.toFloat()
-                    //val len = inputScrollerViewportSize
-                    val firstLine = viewFirstLine//textLayoutResult.getLineForVerticalPosition(st)
-                    val lastLine = viewLastLine//textLayoutResult.getLineForVerticalPosition(st + len)
-                    viewFirstLine = firstLine
-                    viewLastLine = lastLine
-                }
-
-                buildAnnotatedString {
-//                addStyle(defaultTextStyle, 0, lp - fp)  // mark whole text with default style
-                    append(rawText)
-                    for (lineNum in viewFirstLine..viewLastLine) {
-                        val lineStartPos = textLayoutResult.getLineStart(lineNum)
-                        val lineFinishPos = textLayoutResult.getLineEnd(lineNum)
-                        //FIXME: bug on JS getLineEnd does not work - workaround
-                        //val (lineStartPos, lineFinishPos) = inputLineMetrics.lineEnds(lineNum)
-//                        val lineText = rawText.substring(lineStartPos, lineFinishPos)
-                        val lineText = rawText.substring(lineStartPos, minOf(lineFinishPos + 1, rawText.length)) //+1 to get the eol
-                        val toks = try {
-                            getLineTokens(lineNum, lineStartPos, lineText)
-                        } catch (t: Throwable) {
-                            //TODO: log error!
-                            println("Error: in getLineTokens ${t.message} ${t.stackTraceToString()}")
-                            emptyList()
-                        }
-                        for (tk in toks) {
-                            val offsetStart = (lineStartPos + tk.start).coerceIn(lineStartPos, lineFinishPos)
-                            val offsetFinish = (lineStartPos + tk.finish).coerceIn(lineStartPos, lineFinishPos)
-                            addStyle(tk.style, offsetStart, offsetFinish)
-                        }
-                    }
-                }
-            }
-        }
-    }
-
-    fun annotateText2(rawText: CharSequence): AnnotatedString {
-        //val textLayoutResult = lastTextLayoutResult
-        // val rawText = inputRawText
-        return if (rawText.isEmpty()) {
-            AnnotatedString(rawText.toString())
-        } else {
-            val lineMetrics = LineMetrics(rawText)
-            var viewFirstLine = -1
-            var viewLastLine = -1
-            if (0 == this.inputScrollState.viewportSize) {
-                viewFirstLine = 0
-                viewLastLine = lineMetrics.lineCount - 1
-            } else {
-                //val st = inputScrollerOffset.toFloat()
-                //val len = inputScrollerViewportSize
-                val firstLine = viewFirstLine//textLayoutResult.getLineForVerticalPosition(st)
-                val lastLine = viewLastLine//textLayoutResult.getLineForVerticalPosition(st + len)
-                viewFirstLine = firstLine
-                viewLastLine = lastLine
-            }
-
-            buildAnnotatedString {
-//                addStyle(defaultTextStyle, 0, lp - fp)  // mark whole text with default style
-                append(rawText)
-
-                // annotate from tokens
-                for (lineNum in viewFirstLine..viewLastLine) {
-                    //val lineStartPos = textLayoutResult.getLineStart(lineNum)
-                    // val lineFinishPos = textLayoutResult.getLineEnd(lineNum)
-                    //FIXME: bug on JS getLineEnd does not work - workaround
-                    val (lineStartPos, lineFinishPos) = lineMetrics.lineEnds(lineNum)
-//                        val lineText = rawText.substring(lineStartPos, lineFinishPos)
-                    val lineText = rawText.substring(lineStartPos, minOf(lineFinishPos + 1, rawText.length)) //+1 to get the eol
-                    val toks = try {
-                        getLineTokens(lineNum, lineStartPos, lineText)
-                    } catch (t: Throwable) {
-                        //TODO: log error!
-                        println("Error: in getLineTokens ${t.message} ${t.stackTraceToString()}")
-                        emptyList()
-                    }
-                    for (tk in toks) {
-                        val offsetStart = (lineStartPos + tk.start).coerceIn(lineStartPos, lineFinishPos)
-                        val offsetFinish = (lineStartPos + tk.finish).coerceIn(lineStartPos, lineFinishPos)
-                        addStyle(tk.style, offsetStart, offsetFinish)
-                    }
-                }
-
-                // annotate from markers
-                for (marker in textMarkersVisible) {
-                    val lineNum = lineMetrics.lineForPosition(marker.position)
-                   // println("Marker at: ${marker.position} length ${marker.length} line $lineNum")
-                   // val (lineStartPos, lineFinishPos) = lineMetrics.lineEnds(lineNum)
-                    val offsetStart = (marker.position).coerceIn(0, rawText.length)
-                    val offsetFinish = (marker.position + marker.length).coerceIn(0, rawText.length)
-                   // println("Style at: ${offsetStart} .. ${offsetFinish}")
-                    addStyle(marker.style, offsetStart, offsetFinish)
-                }
-            }
-        }
     }
 
     fun refresh() {
         // lastTextLayoutResult?.let { onInputTextLayout(it) }
-        inputTextFieldState.editAsUser(InputTransformation({})) {
+        inputTextFieldState.edit {
             annotateTextFieldBuffer(this)
         }
+        //inputTextFieldState.editAsUser(InputTransformation({})) {
+        //    annotateTextFieldBuffer(this)
+        //}
     }
 
     fun setNewText(text: String) {
         this.inputTextFieldState.setTextAndPlaceCursorAtEnd(text)
-    }
-
-    private fun annotateTextFieldBuffer(buffer: TextFieldBuffer) {
-        val rawText = buffer.asCharSequence()
-        if (rawText.isNotEmpty()) {
-            //val sel = buffer.selection
-            lastAnnotatedText = annotateText2(rawText)
-            buffer.setComposition(0, rawText.length, lastAnnotatedText.annotations)
-            // buffer.selection = sel
-        }
     }
 
     private fun updateViewDetails(textLayoutResult: TextLayoutResult) {
@@ -467,4 +397,16 @@ class EditorState2(
         viewLastLineFinishTextPosition = textLayoutResult.getLineEnd(viewLastLine)
         //println("View: $viewFirstLine $viewLastLine")
     }
+
+    private fun annotateTextFieldBuffer(buffer: TextFieldBuffer) {
+        val rawText = buffer.asCharSequence()
+        if (rawText.isNotEmpty()) {
+            //val sel = buffer.selection
+            lastAnnotatedText = annotateText(rawText, this.viewFirstLine, this.viewLastLine, this.getLineTokens, this.textMarkersVisible)
+            buffer.setComposition(0, rawText.length, lastAnnotatedText.annotations)
+            buffer.changeTracker.trackChange(0, rawText.length,rawText.length)
+            // buffer.selection = sel
+        }
+    }
+
 }
