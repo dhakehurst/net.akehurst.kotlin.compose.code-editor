@@ -152,9 +152,10 @@ class ComposableCodeEditor2(
     }
 
     @Composable
-    fun content(modifier: Modifier = Modifier.fillMaxSize()) {
+    fun content(modifier: Modifier = Modifier.fillMaxSize(), autocompleteModifier: Modifier = Modifier) {
         CodeEditor2(
             modifier = modifier,
+            autocompleteModifier = autocompleteModifier,
             editorState = editorState
         )
     }

@@ -42,6 +42,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
@@ -51,12 +52,14 @@ import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.TextLayoutResult
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.buildAnnotatedString
+import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.round
 import androidx.compose.ui.zIndex
 import kotlinx.coroutines.CoroutineScope
 import net.akehurst.kotlin.compose.editor.api.AutocompleteFunction
 import net.akehurst.kotlin.compose.editor.api.LineTokensFunction
+import kotlin.math.roundToInt
 
 data class CursorDetails(
     val brush: SolidColor
@@ -97,6 +100,7 @@ val KeyEvent.isCtrlSpace get() = (key == Key.Spacebar || utf16CodePoint == ' '.c
 @Composable
 fun CodeEditor2(
     modifier: Modifier = Modifier,
+    autocompleteModifier: Modifier = Modifier,
     editorState: EditorState2 = EditorState2(
         initialText = "",
         defaultTextStyle = SpanStyle(color = MaterialTheme.colorScheme.onBackground),
@@ -191,7 +195,8 @@ fun CodeEditor2(
             }
 
             AutocompletePopup(
-                state = state.autocompleteState
+                state = state.autocompleteState,
+                modifier = autocompleteModifier,
             )
         }
     }
@@ -285,13 +290,16 @@ class EditorState2(
         annotateTextFieldBuffer(this)
     })
 
-    internal val autocompleteState by mutableStateOf(
+    val autocompleteState by mutableStateOf(
         AutocompleteStateCompose(
-            { this.inputTextFieldState.text },
-            { this.inputTextFieldState.selection.start },
-            { this.viewCursor.rect.bottomRight.round() },
-            { txt -> this.inputTextFieldState.edit { this.insert(inputTextFieldState.selection.start, txt) } },
-            requestAutocompleteSuggestions
+            getText = { this.inputTextFieldState.text },
+            getCursorPosition = { this.inputTextFieldState.selection.start },
+            getMenuOffset = {
+                println(cursorPos())
+                cursorPos()
+                            },
+            insertText = { txt -> this.inputTextFieldState.edit { this.insert(inputTextFieldState.selection.start, txt) } },
+            requestAutocompleteSuggestions = requestAutocompleteSuggestions
         )
     )
 
@@ -355,6 +363,7 @@ class EditorState2(
     }
 
     fun onInputTextLayout(textLayoutResult: TextLayoutResult) {
+        autocompleteState.close()
         updateViewDetails(textLayoutResult)
         lastTextLayoutResult = textLayoutResult
         /*
@@ -395,7 +404,27 @@ class EditorState2(
         viewLastLine = textLayoutResult.getLineForVerticalPosition(st + len)
         viewFirstLineStartTextPosition = textLayoutResult.getLineStart(viewFirstLine)
         viewLastLineFinishTextPosition = textLayoutResult.getLineEnd(viewLastLine)
-        //println("View: $viewFirstLine $viewLastLine")
+    }
+
+    fun cursorPos(): IntOffset {
+        // update the drawn cursor position
+        val selStart = inputTextFieldState.selection.start// - viewFirstLinePos
+//        val (vss, inView) = when {
+//            selStart < viewFirstLineStartTextPosition -> Pair(selStart - viewFirstLineStartTextPosition, false)
+//            selStart > viewLastLineFinishTextPosition -> Pair(selStart - viewFirstLineStartTextPosition, false)
+//            else -> Pair(selStart - viewFirstLineStartTextPosition, true)
+//        }
+//        viewCursor.updatePos(vss, inView)
+        val tlr = lastTextLayoutResult
+        return if (null!=tlr) {
+            val currentLine = tlr.getLineForOffset(selStart)
+            val lineBot = tlr.getLineBottom(currentLine).roundToInt()
+            val cursOffset = tlr.getHorizontalPosition(selStart, true).roundToInt()
+            val scrollOffset = inputScrollState.value
+            return IntOffset(cursOffset, lineBot-scrollOffset)
+        } else {
+            IntOffset(0,0)
+        }
     }
 
     private fun annotateTextFieldBuffer(buffer: TextFieldBuffer) {

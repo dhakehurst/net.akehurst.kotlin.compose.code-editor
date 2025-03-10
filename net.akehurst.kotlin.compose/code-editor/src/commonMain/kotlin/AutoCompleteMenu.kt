@@ -42,7 +42,8 @@ import net.akehurst.kotlin.compose.editor.api.AutocompleteState
 import net.akehurst.kotlin.compose.editor.api.AutocompleteSuggestion
 
 fun String.fixLength(maxLen: Int) = when {
-    this.length < maxLen -> this
+    maxLen < 0 -> this
+    maxLen > this.length -> this
     else -> this.substring(0, maxLen - 1) + "\u2026"
 }
 
@@ -57,12 +58,15 @@ internal fun AutocompletePopup(
             shadowElevation = 1.dp,
             border = BorderStroke(Dp.Hairline, MaterialTheme.colorScheme.onSurface),
             modifier = modifier
+                //.fillMaxWidth()
                 .offset { state.getMenuOffset() }
                 .padding(vertical = 2.dp)
+                //.wrapContentSize(unbounded = true)
         ) {
             Column(
                 modifier = Modifier
-                    .width(300.dp)
+                    //.fillMaxWidth()
+//                    .width(300.dp)
                     .heightIn(min = 30.dp, max = 250.dp)
 
             ) {
@@ -79,7 +83,10 @@ internal fun AutocompletePopup(
                                     onClick = { state.choose(item) },
                                 )
                         ) {
-                            Text(item.text.fixLength(15), color = if (state.isSelected(idx)) MaterialTheme.colorScheme.onSurfaceVariant else MaterialTheme.colorScheme.onSurface)
+                            Text(
+                                item.text.fixLength(state.numTextCharactersToShow),
+                                color = if (state.isSelected(idx)) MaterialTheme.colorScheme.onSurfaceVariant else MaterialTheme.colorScheme.onSurface
+                            )
                             Spacer(Modifier.width(20.dp))
                             item.label?.let {
                                 Text("(${it.fixLength(10)})")
@@ -102,7 +109,7 @@ internal fun AutocompletePopup(
 }
 
 @Stable
-internal class AutocompleteStateCompose(
+class AutocompleteStateCompose(
     //val editorState: EditorState,
     val getText: () -> CharSequence,
     val getCursorPosition: () -> Int,
@@ -112,6 +119,7 @@ internal class AutocompleteStateCompose(
 ) : AutocompleteState {
     var scope: CoroutineScope? = null
 
+    var numTextCharactersToShow by mutableStateOf(-1)
     val lazyListState = LazyListState()
     override var isVisible by mutableStateOf(false)
     override var isLoading by mutableStateOf(true)

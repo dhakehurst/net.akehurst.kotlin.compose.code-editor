@@ -1,10 +1,10 @@
 [versions]
-project = "2.1.0"
+project = "2.1.20-RC2"
 
-kotlin = "2.1.0"
-compose = "1.8.0-alpha03"
-dokka = "1.9.20"
-exportPublic = "2.1.0"
+kotlin = "2.1.20-RC2"
+compose = "1.8.0-alpha04"
+dokka = "2.0.0"
+exportPublic = "2.1.20-RC2"
 
 buildconfig = "5.5.1"
 credentials = "3.0"

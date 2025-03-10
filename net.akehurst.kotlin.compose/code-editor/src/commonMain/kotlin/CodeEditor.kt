@@ -152,12 +152,14 @@ class EditorState(
 
     internal val autocompleteState by mutableStateOf(
         AutocompleteStateCompose(
-            { this.inputRawText },
-            { this.inputSelection.start },
+            getText = { this.inputRawText },
+            getCursorPosition = { this.inputSelection.start },
 //            { this.viewCursor.rect.bottomRight.round() },
-            { this.lastTextLayoutResult!!.getCursorRect(this.inputSelection.start).bottomRight.round() },
-            { this.insertText(it) },
-            requestAutocompleteSuggestions
+            getMenuOffset = {
+                this.lastTextLayoutResult!!.getCursorRect(this.inputSelection.start).bottomRight.round()
+                            },
+            insertText = { this.insertText(it) },
+            requestAutocompleteSuggestions = requestAutocompleteSuggestions
         )
     )
     val autocompleteOffset by mutableStateOf(IntOffset(-1, -1))
