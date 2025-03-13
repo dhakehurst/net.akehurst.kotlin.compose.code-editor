@@ -78,6 +78,8 @@ class test_CodeEditor {
         var composeEditor = ComposableCodeEditor2(
             initialText = """
                     \red{Hello} \blue{World}
+                    info
+                    error
                 """.trimIndent(),
             getLineTokens = { lineNumber, lineStartPosition, lineText -> getLineTokens(lineNumber, lineStartPosition, lineText) },
             requestAutocompleteSuggestions = { position, text, result -> requestAutocompleteSuggestions(position, text, result) }
@@ -108,7 +110,7 @@ class test_CodeEditor {
             title = "Code Editor 2 Test",
         ) {
             Surface {
-                composeEditor.content(autocompleteModifier = Modifier)//.width(500.dp))
+                composeEditor.content(autocompleteModifier = Modifier.width(500.dp))
             }
         }
     }

@@ -2,6 +2,7 @@ package net.akehurst.kotlin.compose.editor.api.simple
 
 import androidx.compose.ui.text.SpanStyle
 import net.akehurst.kotlin.compose.editor.api.AutocompleteItem
+import net.akehurst.kotlin.compose.editor.api.AutocompleteItemContent
 import net.akehurst.kotlin.compose.editor.api.EditorLineToken
 
 
@@ -14,6 +15,6 @@ data class EditorLineTokenSimple(
 data class AutocompleteItemSimple(
     override val text: String,
     override val label: String?
-) : AutocompleteItem {
+) : AutocompleteItemContent {
     override fun equalTo(other: AutocompleteItem): Boolean = this == other
 }

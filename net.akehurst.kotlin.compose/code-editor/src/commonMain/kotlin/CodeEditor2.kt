@@ -193,13 +193,14 @@ fun CodeEditor2(
                     state.giveFocus = false
                 }
             }
-
-            AutocompletePopup(
+            AutocompletePopup2(
                 state = state.autocompleteState,
                 modifier = autocompleteModifier,
             )
         }
     }
+
+
 
     state.isFocused = state.interactionSource.collectIsFocusedAsState().value
 }
@@ -253,6 +254,7 @@ class EditorState2(
                         val offsetStart = (marker.position).coerceIn(0, rawText.length)
                         val offsetFinish = (marker.position + marker.length).coerceIn(0, rawText.length)
                         // println("Style at: ${offsetStart} .. ${offsetFinish}")
+
                         addStyle(marker.style, offsetStart, offsetFinish)
                     }
                 }
@@ -321,7 +323,7 @@ class EditorState2(
         var handled = true
         when (ev.type) {
             KeyEventType.KeyDown -> when {
-                this.autocompleteState.isVisible -> this.autocompleteState.handleKey(ev)
+                this.autocompleteState.isVisible -> this.autocompleteState.handlePreviewKeyEvent(ev)
                 else -> when {
                     ev.isCtrlPressed || ev.isMetaPressed -> when {
                         ev.isCtrlSpace -> autocompleteState.open()
@@ -409,18 +411,13 @@ class EditorState2(
     fun cursorPos(): IntOffset {
         // update the drawn cursor position
         val selStart = inputTextFieldState.selection.start// - viewFirstLinePos
-//        val (vss, inView) = when {
-//            selStart < viewFirstLineStartTextPosition -> Pair(selStart - viewFirstLineStartTextPosition, false)
-//            selStart > viewLastLineFinishTextPosition -> Pair(selStart - viewFirstLineStartTextPosition, false)
-//            else -> Pair(selStart - viewFirstLineStartTextPosition, true)
-//        }
-//        viewCursor.updatePos(vss, inView)
         val tlr = lastTextLayoutResult
         return if (null!=tlr) {
             val currentLine = tlr.getLineForOffset(selStart)
             val lineBot = tlr.getLineBottom(currentLine).roundToInt()
             val cursOffset = tlr.getHorizontalPosition(selStart, true).roundToInt()
             val scrollOffset = inputScrollState.value
+            println("currentLine=${currentLine}, lineBot=${lineBot}, cursOffset=$cursOffset,  scrollOffset=$scrollOffset")
             return IntOffset(cursOffset, lineBot-scrollOffset)
         } else {
             IntOffset(0,0)

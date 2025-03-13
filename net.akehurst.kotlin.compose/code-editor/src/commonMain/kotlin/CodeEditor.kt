@@ -116,7 +116,7 @@ fun CodeEditor(
             }
 
             // for autocomplete popup
-            AutocompletePopup(
+            AutocompletePopup2(
                 state = state.autocompleteState
             )
         }
@@ -221,7 +221,7 @@ class EditorState(
         var handled = true
         when (ev.type) {
             KeyEventType.KeyDown -> when {
-                this.autocompleteState.isVisible -> this.autocompleteState.handleKey(ev)
+                this.autocompleteState.isVisible -> this.autocompleteState.handlePreviewKeyEvent(ev)
                 else -> when {
                     ev.isCtrlPressed || ev.isMetaPressed -> when {
                         ev.isCtrlSpace ->  autocompleteState.open()

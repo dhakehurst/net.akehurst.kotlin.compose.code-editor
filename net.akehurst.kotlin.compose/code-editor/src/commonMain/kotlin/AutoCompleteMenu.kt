@@ -22,6 +22,9 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -31,13 +34,19 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.key.Key
 import androidx.compose.ui.input.key.KeyEvent
 import androidx.compose.ui.input.key.key
+import androidx.compose.ui.input.key.onPreviewKeyEvent
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.window.Dialog
+import androidx.compose.ui.window.DialogProperties
+import androidx.compose.ui.window.PopupProperties
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.launch
 import net.akehurst.kotlin.compose.editor.api.AutocompleteFunction
 import net.akehurst.kotlin.compose.editor.api.AutocompleteItem
+import net.akehurst.kotlin.compose.editor.api.AutocompleteItemContent
+import net.akehurst.kotlin.compose.editor.api.AutocompleteItemDivider
 import net.akehurst.kotlin.compose.editor.api.AutocompleteState
 import net.akehurst.kotlin.compose.editor.api.AutocompleteSuggestion
 
@@ -46,7 +55,7 @@ fun String.fixLength(maxLen: Int) = when {
     maxLen > this.length -> this
     else -> this.substring(0, maxLen - 1) + "\u2026"
 }
-
+/*
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
 internal fun AutocompletePopup(
@@ -57,17 +66,14 @@ internal fun AutocompletePopup(
         Surface(
             shadowElevation = 1.dp,
             border = BorderStroke(Dp.Hairline, MaterialTheme.colorScheme.onSurface),
-            modifier = modifier
-                //.fillMaxWidth()
-                .offset { state.getMenuOffset() }
-                .padding(vertical = 2.dp)
-                //.wrapContentSize(unbounded = true)
+
+            //.wrapContentSize(unbounded = true)
         ) {
             Column(
                 modifier = Modifier
-                    //.fillMaxWidth()
+                    .fillMaxWidth()
 //                    .width(300.dp)
-                    .heightIn(min = 30.dp, max = 250.dp)
+//                    .heightIn(min = 30.dp, max = 250.dp)
 
             ) {
                 // List
@@ -83,14 +89,9 @@ internal fun AutocompletePopup(
                                     onClick = { state.choose(item) },
                                 )
                         ) {
-                            Text(
-                                item.text.fixLength(state.numTextCharactersToShow),
-                                color = if (state.isSelected(idx)) MaterialTheme.colorScheme.onSurfaceVariant else MaterialTheme.colorScheme.onSurface
-                            )
+                            item.label?.let { Text("${it.fixLength(state.itemLabelLength)}: ") }
                             Spacer(Modifier.width(20.dp))
-                            item.label?.let {
-                                Text("(${it.fixLength(10)})")
-                            }
+                            Text(item.text.fixLength(state.itemTextLength))
                         }
                     }
                 }
@@ -107,6 +108,64 @@ internal fun AutocompletePopup(
         }
     }
 }
+*/
+@OptIn(ExperimentalFoundationApi::class)
+@Composable
+internal fun AutocompletePopup2(
+    modifier: Modifier = Modifier,
+    state: AutocompleteStateCompose
+) {
+    if (state.isVisible) {
+        Box(
+            modifier = Modifier
+                .offset { state.getMenuOffset() }
+                .padding(vertical = 2.dp)
+                .onPreviewKeyEvent { ev -> state.handlePreviewKeyEvent(ev) }
+        ) {
+            DropdownMenu(
+                expanded = state.isVisible,
+                onDismissRequest = { state.close() },
+                border = BorderStroke(Dp.Hairline, MaterialTheme.colorScheme.onSurface),
+                properties = PopupProperties(focusable = false),
+                modifier = modifier
+            ) {
+                when {
+                    state.isLoading -> {
+                        CircularProgressIndicator()
+                    }
+
+                    state.items.isEmpty() -> {
+                        Text("No suggestions")
+                    }
+
+                    else -> {
+                        state.items.forEachIndexed { idx, item ->
+                            when (item) {
+                                is AutocompleteItemDivider -> HorizontalDivider()
+                                is AutocompleteItemContent -> DropdownMenuItem(
+                                    text = {
+                                        Row(
+                                            modifier = Modifier
+                                                .fillMaxWidth()
+                                        ) {
+                                            item.label?.let { Text("${it.fixLength(state.itemLabelLength)}: ", modifier = Modifier.weight(0.3f)) }
+                                            Text(item.text.fixLength(state.itemTextLength), modifier = Modifier.weight(0.7f))
+                                        }
+                                    },
+                                    onClick = { state.choose(item) },
+                                    modifier = Modifier
+                                        .background(color = if (state.isSelected(idx)) MaterialTheme.colorScheme.surfaceVariant else Color.Transparent)
+                                )
+                                else -> error("subtype not handled")
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
 
 @Stable
 class AutocompleteStateCompose(
@@ -119,7 +178,8 @@ class AutocompleteStateCompose(
 ) : AutocompleteState {
     var scope: CoroutineScope? = null
 
-    var numTextCharactersToShow by mutableStateOf(-1)
+    var itemTextLength by mutableStateOf(-1)
+    var itemLabelLength by mutableStateOf(-1)
     val lazyListState = LazyListState()
     override var isVisible by mutableStateOf(false)
     override var isLoading by mutableStateOf(true)
@@ -176,9 +236,14 @@ class AutocompleteStateCompose(
     fun isSelected(idx: Int): Boolean = selectedIndex == idx
 
     fun chooseSelected() {
-        val textToInsert = this.selectedItem?.text ?: ""
-        insertText(textToInsert)
-        close()
+        val sel = this.selectedItem
+        when (sel) {
+            is AutocompleteItemContent -> {
+                val textToInsert = sel.text
+                insertText(textToInsert)
+                close()
+            }
+        }
     }
 
     fun close() {
@@ -187,7 +252,7 @@ class AutocompleteStateCompose(
         selectedIndex = -1
     }
 
-    fun handleKey(ev: KeyEvent): Boolean {
+    fun handlePreviewKeyEvent(ev: KeyEvent): Boolean {
         var handled = true
         when {
             ev.isCtrlSpace -> requestSuggestions()

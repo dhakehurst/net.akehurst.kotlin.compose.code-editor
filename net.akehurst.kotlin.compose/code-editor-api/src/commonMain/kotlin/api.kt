@@ -73,7 +73,9 @@ interface EditorLineToken {
     val finish: Int
 }
 
-interface AutocompleteItem {
+interface AutocompleteItem
+
+interface AutocompleteItemContent : AutocompleteItem {
 
     /**
      * text to insert if selected
@@ -87,6 +89,8 @@ interface AutocompleteItem {
 
     fun equalTo(other: AutocompleteItem): Boolean
 }
+
+object AutocompleteItemDivider : AutocompleteItem {}
 
 interface AutocompleteSuggestion {
     fun provide(items: List<AutocompleteItem>)
