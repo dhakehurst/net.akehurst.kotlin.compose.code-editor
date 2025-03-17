@@ -32,14 +32,16 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.singleWindowApplication
 import net.akehurst.kotlin.compose.editor.ComposableCodeEditor
 import net.akehurst.kotlin.compose.editor.ComposableCodeEditor2
+import net.akehurst.kotlin.compose.editor.ComposableCodeEditor3
 import net.akehurst.kotlin.compose.editor.api.AutocompleteItem
+import net.akehurst.kotlin.compose.editor.api.AutocompleteItemContent
 import net.akehurst.kotlin.compose.editor.api.AutocompleteSuggestion
-import net.akehurst.kotlin.compose.editor.api.EditorLineToken
+import net.akehurst.kotlin.compose.editor.api.EditorSegmentStyle
 import kotlin.test.Test
 
 data class AcItem(
     override val text: String
-) : AutocompleteItem {
+) : AutocompleteItemContent {
     override val label: String? get() = text
     override fun equalTo(other: AutocompleteItem): Boolean =when {
         other !is AcItem -> false
@@ -57,7 +59,7 @@ class test_CodeEditor {
             initialText = """
                     \red{Hello} \blue{World}
                 """.trimIndent(),
-            getLineTokens = { lineNumber, lineStartPosition, lineText -> getLineTokens(lineNumber, lineStartPosition, lineText) },
+            getLineTokens = { lineNumber, lineStartPosition, lineText -> getLineTokens( lineText) },
             requestAutocompleteSuggestions = { position, text, result -> requestAutocompleteSuggestions(position, text, result) }
 
         )
@@ -81,7 +83,7 @@ class test_CodeEditor {
                     info
                     error
                 """.trimIndent(),
-            getLineTokens = { lineNumber, lineStartPosition, lineText -> getLineTokens(lineNumber, lineStartPosition, lineText) },
+            getLineTokens = { lineNumber, lineStartPosition, lineText -> getLineTokens(lineText) },
             requestAutocompleteSuggestions = { position, text, result -> requestAutocompleteSuggestions(position, text, result) }
 
         )
@@ -114,6 +116,53 @@ class test_CodeEditor {
             }
         }
     }
+
+
+    @OptIn(ExperimentalTextApi::class)
+    @Test
+    fun main3() {
+        var composeEditor = ComposableCodeEditor3(
+            initialText = """
+                    \red{Hello} \blue{World}
+                    info
+                    error
+                """.trimIndent(),
+            requestAutocompleteSuggestions = { position, text, result -> requestAutocompleteSuggestions(position, text, result) }
+
+        )
+        val info = Regex("info")
+        val err = Regex("error")
+        val wavyStyle = PlatformSpanStyle(textDecorationLineStyle = TextDecorationLineStyle.Wavy)
+        composeEditor.onTextChange =  {
+            val lines = it.split("\n")
+            composeEditor.clearMarginItems()
+            composeEditor.clearTextMarkers()
+            lines.forEachIndexed {  idx, ln ->
+                when {
+                    ln.contains("info") ->  composeEditor.addMarginItem(idx, "Info", "Some info", Icons.Outlined.Info, Color.Blue)
+                    ln.contains("error") ->  composeEditor.addMarginItem(idx, "Error", "Some error", Icons.Outlined.Warning, Color.Red)
+                }
+            }
+
+            info.findAll(it).forEach {
+                composeEditor.addTextMarker(it.range.start,it.range.endInclusive-it.range.start+1, SpanStyle(color = Color.Blue, textDecoration = TextDecoration.Underline, platformStyle = wavyStyle))
+            }
+            err.findAll(it).forEach {
+                composeEditor.addTextMarker(it.range.start,it.range.endInclusive-it.range.start+1, SpanStyle(color = Color.Red, textDecoration = TextDecoration.Underline,platformStyle = wavyStyle))
+            }
+
+           composeEditor.lineStyles =  lines.mapIndexed {  idx, ln -> getLineTokens(ln)  }
+        }
+
+        singleWindowApplication(
+            title = "Code Editor 3 Test",
+        ) {
+            Surface {
+                composeEditor.content(autocompleteModifier = Modifier.width(500.dp))
+            }
+        }
+    }
+
 /*
     @Test
     fun main3() {
@@ -143,10 +192,10 @@ class test_CodeEditor {
         ))
     }
 
-    fun getLineTokens(lineNumber: Int, lineStartPosition: Int, lineText: String): List<EditorLineToken> {
+    fun getLineTokens(lineText: String): List<EditorSegmentStyle> {
        val t1 = Regex("[\\\\]red[{](.*)[}]").findAll(lineText).map {
             it.range.first
-            object : EditorLineToken {
+            object : EditorSegmentStyle {
                 override val start: Int get() = it.range.first
                 override val finish: Int get() = it.range.last+1
                 override val style: SpanStyle get() = SpanStyle(color = Color.Red)
@@ -154,7 +203,7 @@ class test_CodeEditor {
         }
         val t2 = Regex("[\\\\]blue[{](.*)[}]").findAll(lineText).map {
             it.range.first
-            object : EditorLineToken {
+            object : EditorSegmentStyle {
                 override val start: Int get() = it.range.first
                 override val finish: Int get() = it.range.last+1
                 override val style: SpanStyle get() = SpanStyle(color = Color.Blue)
@@ -162,7 +211,7 @@ class test_CodeEditor {
         }
         val t3 = Regex("else|if|[{]|[}]").findAll(lineText).map {
             it.range.first
-            object : EditorLineToken {
+            object : EditorSegmentStyle {
                 override val start: Int get() = it.range.first
                 override val finish: Int get() = it.range.last+1
                 override val style: SpanStyle get() = SpanStyle(color = Color.Magenta)

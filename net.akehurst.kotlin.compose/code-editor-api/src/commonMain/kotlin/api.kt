@@ -21,12 +21,13 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.SpanStyle
 
-typealias LineTokensFunction = ((lineNumber: Int, lineStartPosition: Int, lineText: String) -> List<EditorLineToken>)
+typealias LineTokensFunction = ((lineNumber: Int, lineStartPosition: Int, lineText: String) -> List<EditorSegmentStyle>)
 typealias AutocompleteFunction = suspend (position: Int, text: CharSequence, result: AutocompleteSuggestion) -> Unit
 
 interface ComposeCodeEditor {
 
     var rawText: String
+    var lineStyles: Map<Int,List<EditorSegmentStyle>>
     var annotatedText: AnnotatedString
 
     var onTextChange: (String) -> Unit
@@ -56,7 +57,7 @@ interface AutocompleteState {
     fun clear()
 }
 
-interface EditorLineToken {
+interface EditorSegmentStyle {
     /**
      * style for this segment of text
      */
