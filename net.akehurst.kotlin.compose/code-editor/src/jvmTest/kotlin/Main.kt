@@ -151,7 +151,7 @@ class test_CodeEditor {
                 composeEditor.addTextMarker(it.range.start,it.range.endInclusive-it.range.start+1, SpanStyle(color = Color.Red, textDecoration = TextDecoration.Underline,platformStyle = wavyStyle))
             }
 
-           composeEditor.lineStyles =  lines.mapIndexed {  idx, ln -> getLineTokens(ln)  }
+           composeEditor.lineStyles =  lines.mapIndexed {  idx, ln -> Pair(idx,getLineTokens(ln))  }.toMap()
         }
 
         singleWindowApplication(

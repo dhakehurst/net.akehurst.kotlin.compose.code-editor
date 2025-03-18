@@ -349,12 +349,15 @@ class EditorState3(
 
     fun cursorPos(): IntOffset {
         // update the drawn cursor position
-        val selStart = inputTextFieldState.selection.start// - viewFirstLinePos
+        val sel = inputTextFieldState.selection
         val tlr = lastTextLayoutResult
         return if (null != tlr) {
+            val txtLen = tlr.layoutInput.text.length
+            val selStart = sel.start.coerceIn(0,txtLen)
             val currentLine = tlr.getLineForOffset(selStart)
             val lineBot = tlr.getLineBottom(currentLine).roundToInt()
-            val cursOffset = tlr.getHorizontalPosition(selStart, true).roundToInt()
+            val lineEnd = tlr.getLineEnd(currentLine, true)
+            val cursOffset = tlr.getHorizontalPosition(minOf(selStart,lineEnd), true).roundToInt()
             val scrollOffset = inputScrollState.value
             //println("currentLine=${currentLine}, lineBot=${lineBot}, cursOffset=$cursOffset,  scrollOffset=$scrollOffset")
             return IntOffset(cursOffset, lineBot - scrollOffset)
