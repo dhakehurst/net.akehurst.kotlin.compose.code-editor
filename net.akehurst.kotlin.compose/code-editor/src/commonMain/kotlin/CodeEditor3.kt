@@ -150,7 +150,7 @@ fun CodeEditor3(
                 },
                 scrollState = state.inputScrollState,
                 interactionSource = state.interactionSource,
-                outputTransformation = state.outputTransformation
+                outputTransformation = state.outputTransformation,
             )
 
             // to invoke the 'onTextChange' callback when text changes

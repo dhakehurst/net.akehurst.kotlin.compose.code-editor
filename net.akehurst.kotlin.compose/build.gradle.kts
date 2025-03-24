@@ -43,9 +43,6 @@ allprojects {
         google()
     }
 
-    val version_project: String by project
-    val group_project = rootProject.name
-
     group = rootProject.name
     version = rootProject.libs.versions.project.get()
 
@@ -118,6 +115,20 @@ subprojects {
         sign(publishing.publications)
     }
 
+    val creds = project.properties["credentials"] as nu.studer.gradle.credentials.domain.CredentialsContainer
+    configure<PublishingExtension> {
+        repositories {
+            maven {
+                name = "Other"
+                setUrl(getProjectProperty("PUB_URL")?: "<use -P PUB_URL=<...> to set>")
+                credentials {
+                    username = getProjectProperty("PUB_USERNAME")
+                        ?: error("Must set project property with Username (-P PUB_USERNAME=<...> or set in ~/.gradle/gradle.properties)")
+                    password = getProjectProperty("PUB_PASSWORD")?: creds.forKey(getProjectProperty("PUB_USERNAME"))
+                }
+            }
+        }
+    }
 
     configurations.all {
         // Check for updates every build
