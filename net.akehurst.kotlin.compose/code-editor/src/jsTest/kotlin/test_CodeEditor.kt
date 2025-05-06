@@ -30,8 +30,21 @@ import androidx.compose.ui.text.TextDecorationLineStyle
 import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.unit.dp
 import net.akehurst.kotlin.compose.editor.ComposableCodeEditor3
+import net.akehurst.kotlin.compose.editor.api.AutocompleteItem
+import net.akehurst.kotlin.compose.editor.api.AutocompleteItemContent
+import net.akehurst.kotlin.compose.editor.api.AutocompleteSuggestion
+import net.akehurst.kotlin.compose.editor.api.EditorSegmentStyle
 import kotlin.test.Test
-
+data class AcItem(
+    override val text: String
+) : AutocompleteItemContent {
+    override val label: String? get() = text
+    override fun equalTo(other: AutocompleteItem): Boolean =when {
+        other !is AcItem -> false
+        this.text != other.text -> false
+        else -> true
+    }
+}
 class test_CodeEditor {
 
     @OptIn(ExperimentalTextApi::class)
@@ -69,7 +82,7 @@ class test_CodeEditor {
 
             composeEditor.lineStyles =  lines.mapIndexed {  idx, ln -> Pair(idx,getLineTokens(ln))  }.toMap()
         }
-
+/*
         singleWindowApplication(
             title = "Code Editor 3 Test",
         ) {
@@ -77,6 +90,43 @@ class test_CodeEditor {
                 composeEditor.content(autocompleteModifier = Modifier.width(500.dp))
             }
         }
+        TODO
+ */
+    }
+
+    private fun requestAutocompleteSuggestions(position: Int, text: CharSequence, result: AutocompleteSuggestion) {
+        result.provide(listOf(
+            AcItem("if"),
+            AcItem("else"),
+        ))
+    }
+
+    fun getLineTokens(lineText: String): List<EditorSegmentStyle> {
+        val t1 = Regex("[\\\\]red[{](.*)[}]").findAll(lineText).map {
+            it.range.first
+            object : EditorSegmentStyle {
+                override val start: Int get() = it.range.first
+                override val finish: Int get() = it.range.last+1
+                override val style: SpanStyle get() = SpanStyle(color = Color.Red)
+            }
+        }
+        val t2 = Regex("[\\\\]blue[{](.*)[}]").findAll(lineText).map {
+            it.range.first
+            object : EditorSegmentStyle {
+                override val start: Int get() = it.range.first
+                override val finish: Int get() = it.range.last+1
+                override val style: SpanStyle get() = SpanStyle(color = Color.Blue)
+            }
+        }
+        val t3 = Regex("else|if|[{]|[}]").findAll(lineText).map {
+            it.range.first
+            object : EditorSegmentStyle {
+                override val start: Int get() = it.range.first
+                override val finish: Int get() = it.range.last+1
+                override val style: SpanStyle get() = SpanStyle(color = Color.Magenta)
+            }
+        }
+        return (t1 + t2 + t3).toList()
     }
 
 }

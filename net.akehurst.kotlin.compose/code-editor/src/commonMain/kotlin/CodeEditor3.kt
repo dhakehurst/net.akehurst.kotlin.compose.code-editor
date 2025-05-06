@@ -51,6 +51,7 @@ import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.TextLayoutResult
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.buildAnnotatedString
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.zIndex
@@ -102,7 +103,7 @@ fun CodeEditor3(
             modifier = Modifier
                 .width(MARGIN_WIDTH)
                 .fillMaxHeight()
-                .background(color = MaterialTheme.colorScheme.surfaceVariant)
+//                .background(color = MaterialTheme.colorScheme.surfaceVariant)
                 .wrapContentWidth(unbounded = true, align = Alignment.Start)
                 .zIndex(1f),
         ) {
@@ -119,7 +120,9 @@ fun CodeEditor3(
                 }
                 state.marginItemHovered.forEach { ann ->
                     Text(
-                        ann.text, modifier = Modifier
+                       text= ann.text,
+                        overflow = TextOverflow.Visible,
+                        modifier = Modifier
                             .offset(y = ann.offsetFromTopOfViewport(state.viewFirstLine, textLayoutResult) + (MARGIN_WIDTH / 2), x = MARGIN_WIDTH / 2)
                             .background(color = MaterialTheme.colorScheme.surfaceVariant)
                             .border(1.dp, color = MaterialTheme.colorScheme.onSurfaceVariant)
@@ -132,7 +135,7 @@ fun CodeEditor3(
         Box(
             modifier = Modifier
                 .fillMaxSize()
-                .background(color = MaterialTheme.colorScheme.surface),
+//                .background(color = MaterialTheme.colorScheme.surface),
         ) {
 
             BasicTextField(

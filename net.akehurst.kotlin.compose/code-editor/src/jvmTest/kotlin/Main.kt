@@ -135,6 +135,8 @@ class test_CodeEditor {
         val wavyStyle = PlatformSpanStyle(textDecorationLineStyle = TextDecorationLineStyle.Wavy)
         composeEditor.onTextChange =  {
             val lines = it.split("\n")
+            composeEditor.lineStyles =  lines.mapIndexed {  idx, ln -> Pair(idx,getLineTokens(ln))  }.toMap()
+
             composeEditor.clearMarginItems()
             composeEditor.clearTextMarkers()
             lines.forEachIndexed {  idx, ln ->
@@ -151,7 +153,6 @@ class test_CodeEditor {
                 composeEditor.addTextMarker(it.range.start,it.range.endInclusive-it.range.start+1, SpanStyle(color = Color.Red, textDecoration = TextDecoration.Underline,platformStyle = wavyStyle))
             }
 
-           composeEditor.lineStyles =  lines.mapIndexed {  idx, ln -> Pair(idx,getLineTokens(ln))  }.toMap()
         }
 
         singleWindowApplication(
@@ -206,7 +207,7 @@ class test_CodeEditor {
             object : EditorSegmentStyle {
                 override val start: Int get() = it.range.first
                 override val finish: Int get() = it.range.last+1
-                override val style: SpanStyle get() = SpanStyle(color = Color.Blue)
+                override val style: SpanStyle get() = SpanStyle(color = Color.Blue, textDecoration = TextDecoration.None)
             }
         }
         val t3 = Regex("else|if|[{]|[}]").findAll(lineText).map {

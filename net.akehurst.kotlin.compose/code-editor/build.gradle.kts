@@ -3,13 +3,21 @@ plugins {
     alias(libs.plugins.kotlin.compose)
 }
 
-dependencies {
-    commonMainImplementation(compose.ui)
-    commonMainImplementation(compose.foundation)
-    commonMainImplementation(compose.material3)
-
-    commonMainImplementation(project(":code-editor-api"))
-
-
-    jvmTestImplementation(compose.desktop.currentOs)
+kotlin {
+    sourceSets {
+        commonMain {
+            dependencies {
+                api(project(":code-editor-api"))
+                implementation(compose.ui)
+                implementation(compose.foundation)
+                implementation(compose.material3)
+                implementation(libs.material.icons.core)
+            }
+        }
+        jvmMain {
+            dependencies {
+                implementation(compose.desktop.currentOs)
+            }
+        }
+    }
 }

@@ -1,20 +1,21 @@
 [versions]
-project = "2.1.20-SNAPSHOT"
+project = "2.1.21-RC"
 
-kotlin = "2.1.20"
-compose = "1.8.0-beta01"
+kotlin = "2.1.21-RC"
+compose = "1.8.0-rc01"
 dokka = "2.0.0"
-exportPublic = "2.1.20"
+exportPublic = "2.1.21-RC"
 
 buildconfig = "5.5.1"
 credentials = "3.0"
 
+material = "1.7.3"
 korlibs = "6.0.1"
 
 
 [libraries]
 korlibs-korio = { module = "com.soywiz:korlibs-io", version.ref = "korlibs" }
-
+material-icons-core = { module="org.jetbrains.compose.material:material-icons-core", version.ref="material"}
 [plugins]
 kotlin = { id = "org.jetbrains.kotlin.multiplatform", version.ref = "kotlin" }
 dokka = { id = "org.jetbrains.dokka", version.ref = "dokka" }
