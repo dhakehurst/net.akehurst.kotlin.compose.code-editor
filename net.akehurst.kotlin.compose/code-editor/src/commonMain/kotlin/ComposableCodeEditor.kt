@@ -244,12 +244,14 @@ class ComposableCodeEditor3(
     fun content(
         textStyle:TextStyle = TextStyle.Default,
         modifier: Modifier = Modifier.fillMaxSize(),
-        autocompleteModifier: Modifier = Modifier
+        autocompleteModifier: Modifier = Modifier,
+        marginItemHoverModifier: Modifier = Modifier
     ) {
         CodeEditor3(
             textStyle = textStyle,
             modifier = modifier,
             autocompleteModifier = autocompleteModifier,
+            marginItemHoverModifier = marginItemHoverModifier,
             editorState = editorState
         )
     }

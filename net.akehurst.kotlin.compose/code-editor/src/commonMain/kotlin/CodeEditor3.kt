@@ -80,6 +80,7 @@ fun CodeEditor3(
     textStyle: TextStyle = TextStyle.Default,
     modifier: Modifier = Modifier,
     autocompleteModifier: Modifier = Modifier,
+    marginItemHoverModifier: Modifier = Modifier,
     editorState: EditorState3 = EditorState3(
         initialText = "",
         defaultTextStyle = SpanStyle(color = MaterialTheme.colorScheme.onBackground),
@@ -120,9 +121,8 @@ fun CodeEditor3(
                 }
                 state.marginItemHovered.forEach { ann ->
                     Text(
-                       text= ann.text,
-                        overflow = TextOverflow.Visible,
-                        modifier = Modifier
+                        text = ann.text,
+                        modifier = marginItemHoverModifier
                             .offset(y = ann.offsetFromTopOfViewport(state.viewFirstLine, textLayoutResult) + (MARGIN_WIDTH / 2), x = MARGIN_WIDTH / 2)
                             .background(color = MaterialTheme.colorScheme.surfaceVariant)
                             .border(1.dp, color = MaterialTheme.colorScheme.onSurfaceVariant)
@@ -146,8 +146,7 @@ fun CodeEditor3(
                     .fillMaxSize()
                     .onPreviewKeyEvent { ev -> state.handlePreviewKeyEvent(ev) }
                     .onKeyEvent { ev -> state.handleKeyEvent(ev) }
-                    .focusRequester(state.focusRequester)
-                ,
+                    .focusRequester(state.focusRequester),
                 onTextLayout = { r ->
                     r.invoke()?.let { state.onInputTextLayout(it) }
                 },
@@ -158,7 +157,7 @@ fun CodeEditor3(
 
             // to invoke the 'onTextChange' callback when text changes
             LaunchedEffect(state.inputRawText) {
-                snapshotFlow { state.inputRawText}.collect { state.onInputChange(it) }
+                snapshotFlow { state.inputRawText }.collect { state.onInputChange(it) }
             }
 
             LaunchedEffect(state.inputScrollState.value) {
@@ -230,7 +229,7 @@ class EditorState3(
     val focusRequester by mutableStateOf(FocusRequester())
 
     val inputTextFieldState by mutableStateOf(TextFieldState(initialText))
-    val inputRawText by derivedStateOf {  inputTextFieldState.text }
+    val inputRawText by derivedStateOf { inputTextFieldState.text }
     val lineStyles = mutableStateMapOf<Int, List<EditorSegmentStyle>>()
 
     var lastAnnotatedText: AnnotatedString? = null
@@ -356,11 +355,11 @@ class EditorState3(
         val tlr = lastTextLayoutResult
         return if (null != tlr) {
             val txtLen = tlr.layoutInput.text.length
-            val selStart = sel.start.coerceIn(0,txtLen)
+            val selStart = sel.start.coerceIn(0, txtLen)
             val currentLine = tlr.getLineForOffset(selStart)
             val lineBot = tlr.getLineBottom(currentLine).roundToInt()
             val lineEnd = tlr.getLineEnd(currentLine, true)
-            val cursOffset = tlr.getHorizontalPosition(minOf(selStart,lineEnd), true).roundToInt()
+            val cursOffset = tlr.getHorizontalPosition(minOf(selStart, lineEnd), true).roundToInt()
             val scrollOffset = inputScrollState.value
             //println("currentLine=${currentLine}, lineBot=${lineBot}, cursOffset=$cursOffset,  scrollOffset=$scrollOffset")
             return IntOffset(cursOffset, lineBot - scrollOffset)
@@ -374,7 +373,7 @@ class EditorState3(
         lineStyles.putAll(value)
     }
 
-    fun setLineStyles(lineNumber:Int, styles: List<EditorSegmentStyle>) {
+    fun setLineStyles(lineNumber: Int, styles: List<EditorSegmentStyle>) {
         lineStyles[lineNumber] = styles
     }
 
