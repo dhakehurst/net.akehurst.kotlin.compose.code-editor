@@ -18,15 +18,12 @@ package net.akehurst.kotlin.compose.editor
 
 import androidx.compose.foundation.*
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyListState
-import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
@@ -35,11 +32,10 @@ import androidx.compose.ui.input.key.Key
 import androidx.compose.ui.input.key.KeyEvent
 import androidx.compose.ui.input.key.key
 import androidx.compose.ui.input.key.onPreviewKeyEvent
+import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.window.Dialog
-import androidx.compose.ui.window.DialogProperties
 import androidx.compose.ui.window.PopupProperties
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.launch
@@ -47,6 +43,7 @@ import net.akehurst.kotlin.compose.editor.api.AutocompleteFunction
 import net.akehurst.kotlin.compose.editor.api.AutocompleteItem
 import net.akehurst.kotlin.compose.editor.api.AutocompleteItemContent
 import net.akehurst.kotlin.compose.editor.api.AutocompleteItemDivider
+import net.akehurst.kotlin.compose.editor.api.AutocompleteRequestData
 import net.akehurst.kotlin.compose.editor.api.AutocompleteState
 import net.akehurst.kotlin.compose.editor.api.AutocompleteSuggestion
 
@@ -55,6 +52,14 @@ fun String.fixLength(maxLen: Int) = when {
     maxLen > this.length -> this
     else -> this.substring(0, maxLen - 1) + "\u2026"
 }
+
+fun <T> MutableList<T>.setOrAdd(index: Int, element: T) {
+    when {
+        index < this.size -> this[index] = element
+        else -> this.add(element)
+    }
+}
+
 /*
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
@@ -122,11 +127,13 @@ internal fun AutocompletePopup2(
                 .padding(vertical = 2.dp)
                 .onPreviewKeyEvent { ev -> state.handlePreviewKeyEvent(ev) }
         ) {
+            state.dropdownItemHeight.clear()
             DropdownMenu(
                 expanded = state.isVisible,
                 onDismissRequest = { state.close() },
                 border = BorderStroke(Dp.Hairline, MaterialTheme.colorScheme.onSurface),
                 properties = PopupProperties(focusable = false),
+                scrollState = state.scrollState,
                 modifier = modifier
             ) {
                 when {
@@ -139,23 +146,43 @@ internal fun AutocompletePopup2(
                     }
 
                     else -> {
+                        var nonDividerIdx = 0
                         state.items.forEachIndexed { idx, item ->
+                            val oddNum = nonDividerIdx % 2 == 0
+                            val rowBgColour = when {
+                                state.isSelected(idx) -> MaterialTheme.colorScheme.primaryContainer
+                                oddNum -> MaterialTheme.colorScheme.surfaceVariant
+                                else -> MaterialTheme.colorScheme.surface
+                            }
+                            val textDefaultColour = when {
+                                state.isSelected(idx) -> MaterialTheme.colorScheme.onPrimaryContainer
+                                oddNum -> MaterialTheme.colorScheme.onSurfaceVariant
+                                else -> MaterialTheme.colorScheme.onSurface
+                            }
                             when (item) {
-                                is AutocompleteItemDivider -> HorizontalDivider()
-                                is AutocompleteItemContent -> DropdownMenuItem(
-                                    text = {
-                                        Row(
-                                            modifier = Modifier
-                                                .fillMaxWidth()
-                                        ) {
-                                            item.label?.let { Text("${it.fixLength(state.itemLabelLength)}: ", modifier = Modifier.weight(0.3f)) }
-                                            Text(item.text.fixLength(state.itemTextLength), modifier = Modifier.weight(0.7f))
-                                        }
-                                    },
-                                    onClick = { state.choose(item) },
-                                    modifier = Modifier
-                                        .background(color = if (state.isSelected(idx)) MaterialTheme.colorScheme.surfaceVariant else Color.Transparent)
-                                )
+                                is AutocompleteItemDivider -> HorizontalDivider(thickness = 2.dp, color = Color.Black)
+                                is AutocompleteItemContent -> {
+                                    nonDividerIdx++
+                                    DropdownMenuItem(
+                                        text = {
+                                            Row(
+                                                modifier = Modifier
+                                                    .fillMaxWidth()
+                                            ) {
+                                                item.label?.let { Text("${it.fixLength(state.itemLabelLength)}: ", modifier = Modifier.weight(0.3f)) }
+                                                Text(item.text.fixLength(state.itemTextLength), modifier = Modifier.weight(0.7f), color = textDefaultColour)
+                                            }
+                                        },
+                                        onClick = { state.choose(item) },
+                                        modifier = Modifier
+                                            // need height of items in order to scroll
+                                            .onGloballyPositioned { measuredSize ->
+                                                state.dropdownItemHeight.add(measuredSize.size.height)
+                                            }
+                                            .background(color = rowBgColour)
+                                    )
+                                }
+
                                 else -> error("subtype not handled")
                             }
                         }
@@ -181,6 +208,8 @@ class AutocompleteStateCompose(
     var itemTextLength by mutableStateOf(-1)
     var itemLabelLength by mutableStateOf(-1)
     val lazyListState = LazyListState()
+    val scrollState = ScrollState(0)
+    val dropdownItemHeight = mutableListOf<Int>()
     override var isVisible by mutableStateOf(false)
     override var isLoading by mutableStateOf(true)
     var selectedIndex by mutableStateOf<Int>(-1)
@@ -193,7 +222,7 @@ class AutocompleteStateCompose(
     fun open() {
         isVisible = true
         isLoading = true
-        requestSuggestions()
+        requestSuggestions(false, 0, 0)
     }
 
     override fun clear() {
@@ -201,15 +230,21 @@ class AutocompleteStateCompose(
     }
 
     fun scrollToSelected() {
+        //println(selectedIndex)
         scope?.launch {
-            lazyListState.scrollToItem(selectedIndex, -20)
+            val dist = dropdownItemHeight.take(selectedIndex).sum()
+            scrollState.scrollTo(dist)
         }
     }
 
     fun selectNext() {
+        var nextItemIdx = selectedIndex + 1
+        while (items.getOrNull(nextItemIdx) !is AutocompleteItemContent && nextItemIdx < items.size) {
+            nextItemIdx++
+        }
         when {
-            selectedIndex < (items.size - 1) -> {
-                selectedIndex++
+            nextItemIdx < items.size -> {
+                selectedIndex = nextItemIdx
                 scrollToSelected()
             }
 
@@ -218,14 +253,22 @@ class AutocompleteStateCompose(
     }
 
     fun selectPrevious() {
+        var nextItemIdx = selectedIndex - 1
+        while (items.getOrNull(nextItemIdx) !is AutocompleteItemContent && nextItemIdx >= 0) {
+            nextItemIdx--
+        }
         when {
-            selectedIndex > 0 -> {
-                selectedIndex--
+            nextItemIdx >= 0 -> {
+                selectedIndex = nextItemIdx
                 scrollToSelected()
             }
 
             else -> Unit
         }
+    }
+
+    fun selectPath(propDelta: Int) {
+        requestSuggestions(true, propDelta, 0)
     }
 
     fun choose(item: AutocompleteItem) {
@@ -255,31 +298,34 @@ class AutocompleteStateCompose(
     fun handlePreviewKeyEvent(ev: KeyEvent): Boolean {
         var handled = true
         when {
-            ev.isCtrlSpace -> requestSuggestions()
+            ev.isCtrlSpace -> requestSuggestions(true, 0, +1)
             else -> when (ev.key) {
                 Key.Escape -> this.close()
                 Key.Enter -> this.chooseSelected()
                 Key.DirectionDown -> this.selectNext()
                 Key.DirectionUp -> this.selectPrevious()
+                Key.DirectionRight -> this.selectPath(+1)
+                Key.DirectionLeft -> this.selectPath(-1)
                 else -> handled = false
             }
         }
         return handled
     }
 
-    private fun requestSuggestions() {
-        items.clear()
+    private fun requestSuggestions(isOpen: Boolean, proposalPathDelta: Int, depthDelta: Int) {
+        this.clear()
         val result = object : AutocompleteSuggestion {
             override fun provide(items: List<AutocompleteItem>) {
                 this@AutocompleteStateCompose.items.addAll(items)
                 isLoading = false
                 if (items.isNotEmpty()) {
                     selectedIndex = 0
+                    scrollToSelected()
                 }
             }
         }
         scope?.launch {
-            requestAutocompleteSuggestions.invoke(getCursorPosition(), getText(), result)
+            requestAutocompleteSuggestions.invoke(AutocompleteRequestData(getCursorPosition(), getText(), isOpen, selectedIndex, proposalPathDelta, depthDelta), result)
         }
     }
 }

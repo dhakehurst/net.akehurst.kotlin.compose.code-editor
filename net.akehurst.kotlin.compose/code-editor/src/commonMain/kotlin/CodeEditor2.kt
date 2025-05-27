@@ -18,7 +18,7 @@
 @file:Suppress("UNUSED", "INVISIBLE_MEMBER", "INVISIBLE_REFERENCE")
 
 package net.akehurst.kotlin.compose.editor
-
+/*
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.ScrollState
 import androidx.compose.foundation.background
@@ -61,24 +61,7 @@ import net.akehurst.kotlin.compose.editor.api.AutocompleteFunction
 import net.akehurst.kotlin.compose.editor.api.LineTokensFunction
 import kotlin.math.roundToInt
 
-data class CursorDetails(
-    val brush: SolidColor
-) {
-    var inView = true
-    var position = 0
-    var rect = Rect.Zero
 
-    //val top get() = rect.topCenter
-    //val bot get() = Offset(top.x, top.y + rect.height)
-    fun updatePos(newPos: Int, inView: Boolean) {
-        this.inView = inView
-        this.position = newPos
-    }
-
-    fun updateRect(newRect: Rect) {
-        this.rect = newRect
-    }
-}
 
 
 
@@ -104,7 +87,7 @@ fun CodeEditor2(
         defaultTextStyle = SpanStyle(color = MaterialTheme.colorScheme.onBackground),
         onTextChange = {},
         getLineTokens = { _, _, _ -> emptyList() },
-        requestAutocompleteSuggestions = { _, _, _ -> },
+        requestAutocompleteSuggestions = { _, _, _, _ -> },
     )
 ) {
     val MARGIN_WIDTH = 20.dp
@@ -207,7 +190,7 @@ class EditorState2(
     val defaultTextStyle: SpanStyle = SpanStyle(color = Color.Black, background = Color.White),
     val onTextChange: (CharSequence) -> Unit = {},
     var getLineTokens: LineTokensFunction = { _, _, _ -> emptyList() },
-    requestAutocompleteSuggestions: AutocompleteFunction = { _, _, _ -> }
+    requestAutocompleteSuggestions: AutocompleteFunction = { _, _, _, _ -> }
 ) {
     companion object {
         fun annotateText(rawText: CharSequence, viewFirstLine: Int, viewLastLine: Int, getLineTokens: LineTokensFunction, markers: List<TextMarkerDefault>): AnnotatedString {
@@ -403,3 +386,5 @@ class EditorState2(
     }
 
 }
+
+ */

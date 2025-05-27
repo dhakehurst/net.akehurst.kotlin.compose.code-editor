@@ -18,7 +18,7 @@
 @file:Suppress("UNUSED", "INVISIBLE_MEMBER", "INVISIBLE_REFERENCE")
 
 package net.akehurst.kotlin.compose.editor
-
+/*
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.gestures.Orientation
@@ -67,7 +67,7 @@ fun CodeEditor(
         defaultTextStyle = SpanStyle(color = MaterialTheme.colorScheme.onBackground, background = Color.Transparent),
         onTextChange = {},
         getLineTokens = { _, _, _ -> emptyList() },
-        requestAutocompleteSuggestions = { _, _, _ -> },
+        requestAutocompleteSuggestions = { _, _ -> },
     )
 ) {
     val state by remember { mutableStateOf(editorState) }
@@ -131,7 +131,7 @@ class EditorState(
     val defaultTextStyle: SpanStyle = SpanStyle(color = Color.Black, background = Color.White),
     val onTextChange: (String) -> Unit = {},
     var getLineTokens: LineTokensFunction = { _, _, _ -> emptyList() },
-    requestAutocompleteSuggestions: AutocompleteFunction = { _, _, _ -> }
+    requestAutocompleteSuggestions: AutocompleteFunction = { _, _, _, _ -> }
 ) {
 
     var scope: CoroutineScope? = null
@@ -296,3 +296,4 @@ class EditorState(
     }
 
 }
+ */

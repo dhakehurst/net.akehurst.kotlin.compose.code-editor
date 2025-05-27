@@ -16,6 +16,7 @@
 
 package test
 
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.width
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.Info
@@ -30,13 +31,8 @@ import androidx.compose.ui.text.TextDecorationLineStyle
 import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.singleWindowApplication
-import net.akehurst.kotlin.compose.editor.ComposableCodeEditor
-import net.akehurst.kotlin.compose.editor.ComposableCodeEditor2
 import net.akehurst.kotlin.compose.editor.ComposableCodeEditor3
-import net.akehurst.kotlin.compose.editor.api.AutocompleteItem
-import net.akehurst.kotlin.compose.editor.api.AutocompleteItemContent
-import net.akehurst.kotlin.compose.editor.api.AutocompleteSuggestion
-import net.akehurst.kotlin.compose.editor.api.EditorSegmentStyle
+import net.akehurst.kotlin.compose.editor.api.*
 import kotlin.test.Test
 
 data class AcItem(
@@ -51,7 +47,7 @@ data class AcItem(
 }
 
 class test_CodeEditor {
-
+/*
     @Test
     fun main1() {
 
@@ -84,7 +80,7 @@ class test_CodeEditor {
                     error
                 """.trimIndent(),
             getLineTokens = { lineNumber, lineStartPosition, lineText -> getLineTokens(lineText) },
-            requestAutocompleteSuggestions = { position, text, result -> requestAutocompleteSuggestions(position, text, result) }
+            requestAutocompleteSuggestions = { request, result -> requestAutocompleteSuggestions(request, result) }
 
         )
         val info = Regex("info")
@@ -116,7 +112,7 @@ class test_CodeEditor {
             }
         }
     }
-
+*/
 
     @OptIn(ExperimentalTextApi::class)
     @Test
@@ -127,7 +123,7 @@ class test_CodeEditor {
                     info
                     error
                 """.trimIndent(),
-            requestAutocompleteSuggestions = { position, text, result -> requestAutocompleteSuggestions(position, text, result) }
+            requestAutocompleteSuggestions = { request, result -> requestAutocompleteSuggestions(request, result) }
 
         )
         val info = Regex("info")
@@ -159,7 +155,7 @@ class test_CodeEditor {
             title = "Code Editor 3 Test",
         ) {
             Surface {
-                composeEditor.content(autocompleteModifier = Modifier.width(500.dp))
+                composeEditor.content(autocompleteModifier = Modifier.width(500.dp).heightIn(30.dp, 300.dp))
             }
         }
     }
@@ -186,11 +182,32 @@ class test_CodeEditor {
         }
     }
 */
-    private fun requestAutocompleteSuggestions(position: Int, text: CharSequence, result: AutocompleteSuggestion) {
-        result.provide(listOf(
-            AcItem("if"),
-            AcItem("else"),
-        ))
+    private fun requestAutocompleteSuggestions(request: AutocompleteRequestData, result: AutocompleteSuggestion) {
+        when {
+            request.depthDelta == 0 -> result.provide(
+                listOf(
+                    AcItem("if"),
+                    AcItem("else")
+                )
+            )
+            else -> result.provide(
+                listOf(
+                    AcItem("if"),
+                    AcItem("else"),
+                    AcItem("while"),
+                    AcItem("when"),
+                    AcItem("fun"),
+                    AcItem("val"),
+                    AcItem("var"),
+                    AutocompleteItemDivider,
+                    AcItem("override"),
+                    AcItem("data"),
+                    AcItem("value"),
+                    AcItem("enum"),
+                    AcItem("class"),
+                )
+            )
+        }
     }
 
     fun getLineTokens(lineText: String): List<EditorSegmentStyle> {

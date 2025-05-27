@@ -43,6 +43,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.input.key.*
@@ -74,6 +75,26 @@ import kotlin.math.roundToInt
  * KEY_RELEASED
  */
 
+data class CursorDetails(
+    val brush: SolidColor
+) {
+    var inView = true
+    var position = 0
+    var rect = Rect.Zero
+
+    //val top get() = rect.topCenter
+    //val bot get() = Offset(top.x, top.y + rect.height)
+    fun updatePos(newPos: Int, inView: Boolean) {
+        this.inView = inView
+        this.position = newPos
+    }
+
+    fun updateRect(newRect: Rect) {
+        this.rect = newRect
+    }
+}
+
+
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
 fun CodeEditor3(
@@ -85,7 +106,7 @@ fun CodeEditor3(
         initialText = "",
         defaultTextStyle = SpanStyle(color = MaterialTheme.colorScheme.onBackground),
         onTextChange = {},
-        requestAutocompleteSuggestions = { _, _, _ -> },
+        requestAutocompleteSuggestions = {  _, _ -> },
     )
 ) {
     val MARGIN_WIDTH = 20.dp
@@ -185,7 +206,7 @@ class EditorState3(
     initialText: String = "",
     val defaultTextStyle: SpanStyle = SpanStyle(color = Color.Black, background = Color.White),
     val onTextChange: (CharSequence) -> Unit = {},
-    requestAutocompleteSuggestions: AutocompleteFunction = { _, _, _ -> }
+    requestAutocompleteSuggestions: AutocompleteFunction = {_, _ -> }
 ) {
     companion object {
         fun annotateText(rawText: CharSequence, viewFirstLine: Int, viewLastLine: Int, lineTokens: Map<Int, List<EditorSegmentStyle>>, markers: List<TextMarkerDefault>): AnnotatedString {

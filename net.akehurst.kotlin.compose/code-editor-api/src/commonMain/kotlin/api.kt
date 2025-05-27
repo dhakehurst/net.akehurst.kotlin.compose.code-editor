@@ -22,7 +22,17 @@ import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.SpanStyle
 
 typealias LineTokensFunction = ((lineNumber: Int, lineStartPosition: Int, lineText: String) -> List<EditorSegmentStyle>)
-typealias AutocompleteFunction = suspend (position: Int, text: CharSequence, result: AutocompleteSuggestion) -> Unit
+typealias AutocompleteFunction = suspend (request:AutocompleteRequestData, result: AutocompleteSuggestion) -> Unit
+
+
+data class AutocompleteRequestData(
+    val position: Int,
+    val text: CharSequence,
+    val isOpen: Boolean,
+    val currentIndex:Int,
+    val proposalPathDelta:Int,
+    val depthDelta:Int
+)
 
 interface ComposeCodeEditor {
 

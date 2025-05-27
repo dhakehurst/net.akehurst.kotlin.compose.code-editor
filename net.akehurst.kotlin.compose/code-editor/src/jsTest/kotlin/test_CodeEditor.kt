@@ -32,6 +32,7 @@ import androidx.compose.ui.unit.dp
 import net.akehurst.kotlin.compose.editor.ComposableCodeEditor3
 import net.akehurst.kotlin.compose.editor.api.AutocompleteItem
 import net.akehurst.kotlin.compose.editor.api.AutocompleteItemContent
+import net.akehurst.kotlin.compose.editor.api.AutocompleteRequestData
 import net.akehurst.kotlin.compose.editor.api.AutocompleteSuggestion
 import net.akehurst.kotlin.compose.editor.api.EditorSegmentStyle
 import kotlin.test.Test
@@ -56,7 +57,7 @@ class test_CodeEditor {
                     info
                     error
                 """.trimIndent(),
-            requestAutocompleteSuggestions = { position, text, result -> requestAutocompleteSuggestions(position, text, result) }
+            requestAutocompleteSuggestions = { req, result -> requestAutocompleteSuggestions(req, result) }
 
         )
         val info = Regex("info")
@@ -94,7 +95,7 @@ class test_CodeEditor {
  */
     }
 
-    private fun requestAutocompleteSuggestions(position: Int, text: CharSequence, result: AutocompleteSuggestion) {
+    private fun requestAutocompleteSuggestions(req: AutocompleteRequestData, result: AutocompleteSuggestion) {
         result.provide(listOf(
             AcItem("if"),
             AcItem("else"),
