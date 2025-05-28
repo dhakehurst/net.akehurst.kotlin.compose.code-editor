@@ -36,6 +36,7 @@ import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.em
 import androidx.compose.ui.window.PopupProperties
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.launch
@@ -169,7 +170,8 @@ internal fun AutocompletePopup2(
                                                 modifier = Modifier
                                                     .fillMaxWidth()
                                             ) {
-                                                item.label?.let { Text("${it.fixLength(state.itemLabelLength)}: ", modifier = Modifier.weight(0.3f)) }
+                                                item.label?.let { Text(it.fixLength(state.itemLabelLength), fontSize = 0.7.em, modifier = Modifier.weight(0.3f), color = Color.Gray) }
+                                                Spacer(Modifier.width(5.dp))
                                                 Text(item.text.fixLength(state.itemTextLength), modifier = Modifier.weight(0.7f), color = textDefaultColour)
                                             }
                                         },

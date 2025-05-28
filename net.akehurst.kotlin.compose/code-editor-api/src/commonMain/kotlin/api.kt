@@ -33,7 +33,9 @@ data class AutocompleteRequestData(
     val proposalPathDelta:Int,
     val depthDelta:Int
 )
-
+enum class TextDecorationStyle {
+    NONE,STRAIGHT, SQUIGGLY
+}
 interface ComposeCodeEditor {
 
     var rawText: String
@@ -57,7 +59,7 @@ interface ComposeCodeEditor {
     fun clearMarginItems()
     fun addMarginItem(lineNumber: Int, kind: String, text: String, icon: ImageVector, color: Color)
     fun clearTextMarkers()
-    fun addTextMarker(position:Int, length:Int, style: SpanStyle)
+    fun addTextMarker(position:Int, length:Int, style: SpanStyle, decoration:TextDecorationStyle = TextDecorationStyle.NONE)
 }
 
 interface AutocompleteState {

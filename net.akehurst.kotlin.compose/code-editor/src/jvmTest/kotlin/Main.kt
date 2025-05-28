@@ -41,7 +41,7 @@ data class AcItem(
     override val text: String
 ) : AutocompleteItemContent {
     override val label: String? get() = text
-    override fun equalTo(other: AutocompleteItem): Boolean =when {
+    override fun equalTo(other: AutocompleteItem): Boolean = when {
         other !is AcItem -> false
         this.text != other.text -> false
         else -> true
@@ -49,72 +49,72 @@ data class AcItem(
 }
 
 class test_CodeEditor {
-/*
-    @Test
-    fun main1() {
+    /*
+        @Test
+        fun main1() {
 
-        var composeEditor = ComposableCodeEditor(
-            initialText = """
-                    \red{Hello} \blue{World}
-                """.trimIndent(),
-            getLineTokens = { lineNumber, lineStartPosition, lineText -> getLineTokens( lineText) },
-            requestAutocompleteSuggestions = { position, text, result -> requestAutocompleteSuggestions(position, text, result) }
+            var composeEditor = ComposableCodeEditor(
+                initialText = """
+                        \red{Hello} \blue{World}
+                    """.trimIndent(),
+                getLineTokens = { lineNumber, lineStartPosition, lineText -> getLineTokens( lineText) },
+                requestAutocompleteSuggestions = { position, text, result -> requestAutocompleteSuggestions(position, text, result) }
 
-        )
+            )
 
-        singleWindowApplication(
-            title = "Code Editor Test",
-        ) {
-            Surface {
-                composeEditor.content()
+            singleWindowApplication(
+                title = "Code Editor Test",
+            ) {
+                Surface {
+                    composeEditor.content()
+                }
             }
         }
-    }
 
-    @OptIn(ExperimentalTextApi::class)
-    @Test
-    fun main2() {
+        @OptIn(ExperimentalTextApi::class)
+        @Test
+        fun main2() {
 
-        var composeEditor = ComposableCodeEditor2(
-            initialText = """
-                    \red{Hello} \blue{World}
-                    info
-                    error
-                """.trimIndent(),
-            getLineTokens = { lineNumber, lineStartPosition, lineText -> getLineTokens(lineText) },
-            requestAutocompleteSuggestions = { request, result -> requestAutocompleteSuggestions(request, result) }
+            var composeEditor = ComposableCodeEditor2(
+                initialText = """
+                        \red{Hello} \blue{World}
+                        info
+                        error
+                    """.trimIndent(),
+                getLineTokens = { lineNumber, lineStartPosition, lineText -> getLineTokens(lineText) },
+                requestAutocompleteSuggestions = { request, result -> requestAutocompleteSuggestions(request, result) }
 
-        )
-        val info = Regex("info")
-        val err = Regex("error")
-        val wavyStyle = PlatformSpanStyle(textDecorationLineStyle = TextDecorationLineStyle.Wavy)
-        composeEditor.onTextChange =  {
-            composeEditor.clearMarginItems()
-            composeEditor.clearTextMarkers()
-            it.split("\n").forEachIndexed {  idx, ln ->
-                when {
-                    ln.contains("info") ->  composeEditor.addMarginItem(idx, "Info", "Some info", Icons.Outlined.Info, Color.Blue)
-                    ln.contains("error") ->  composeEditor.addMarginItem(idx, "Error", "Some error", Icons.Outlined.Warning, Color.Red)
+            )
+            val info = Regex("info")
+            val err = Regex("error")
+            val wavyStyle = PlatformSpanStyle(textDecorationLineStyle = TextDecorationLineStyle.Wavy)
+            composeEditor.onTextChange =  {
+                composeEditor.clearMarginItems()
+                composeEditor.clearTextMarkers()
+                it.split("\n").forEachIndexed {  idx, ln ->
+                    when {
+                        ln.contains("info") ->  composeEditor.addMarginItem(idx, "Info", "Some info", Icons.Outlined.Info, Color.Blue)
+                        ln.contains("error") ->  composeEditor.addMarginItem(idx, "Error", "Some error", Icons.Outlined.Warning, Color.Red)
+                    }
+                }
+
+                info.findAll(it).forEach {
+                    composeEditor.addTextMarker(it.range.start,it.range.endInclusive-it.range.start+1, SpanStyle(color = Color.Blue, textDecoration = TextDecoration.Underline, platformStyle = wavyStyle))
+                }
+                err.findAll(it).forEach {
+                    composeEditor.addTextMarker(it.range.start,it.range.endInclusive-it.range.start+1, SpanStyle(color = Color.Red, textDecoration = TextDecoration.Underline,platformStyle = wavyStyle))
                 }
             }
 
-            info.findAll(it).forEach {
-                composeEditor.addTextMarker(it.range.start,it.range.endInclusive-it.range.start+1, SpanStyle(color = Color.Blue, textDecoration = TextDecoration.Underline, platformStyle = wavyStyle))
-            }
-            err.findAll(it).forEach {
-                composeEditor.addTextMarker(it.range.start,it.range.endInclusive-it.range.start+1, SpanStyle(color = Color.Red, textDecoration = TextDecoration.Underline,platformStyle = wavyStyle))
-            }
-        }
-
-        singleWindowApplication(
-            title = "Code Editor 2 Test",
-        ) {
-            Surface {
-                composeEditor.content(autocompleteModifier = Modifier.width(500.dp))
+            singleWindowApplication(
+                title = "Code Editor 2 Test",
+            ) {
+                Surface {
+                    composeEditor.content(autocompleteModifier = Modifier.width(500.dp))
+                }
             }
         }
-    }
-*/
+    */
 
     @OptIn(ExperimentalTextApi::class)
     @Test
@@ -132,24 +132,32 @@ class test_CodeEditor {
         val info = Regex("info")
         val err = Regex("error")
         val wavyStyle = PlatformSpanStyle(textDecorationLineStyle = TextDecorationLineStyle.Wavy)
-        composeEditor.onTextChange =  {
+        composeEditor.onTextChange = {
             val lines = it.split("\n")
-            composeEditor.lineStyles =  lines.mapIndexed {  idx, ln -> Pair(idx,getLineTokens(ln))  }.toMap()
+            composeEditor.lineStyles = lines.mapIndexed { idx, ln -> Pair(idx, getLineTokens(ln)) }.toMap()
 
             composeEditor.clearMarginItems()
             composeEditor.clearTextMarkers()
-            lines.forEachIndexed {  idx, ln ->
+            lines.forEachIndexed { idx, ln ->
                 when {
-                    ln.contains("info") ->  composeEditor.addMarginItem(idx, "Info", "Some info", Icons.Outlined.Info, Color.Blue)
-                    ln.contains("error") ->  composeEditor.addMarginItem(idx, "Error", "Some error", Icons.Outlined.Warning, Color.Red)
+                    ln.contains("info") -> composeEditor.addMarginItem(idx, "Info", "Some info", Icons.Outlined.Info, Color.Blue)
+                    ln.contains("error") -> composeEditor.addMarginItem(idx, "Error", "Some error", Icons.Outlined.Warning, Color.Red)
                 }
             }
 
             info.findAll(it).forEach {
-                composeEditor.addTextMarker(it.range.start,it.range.endInclusive-it.range.start+1, SpanStyle(color = Color.Blue, textDecoration = TextDecoration.Underline, platformStyle = wavyStyle))
+                composeEditor.addTextMarker(
+                    it.range.start, it.range.endInclusive - it.range.start + 1,
+                    SpanStyle(color = Color.Blue),//, textDecoration = TextDecoration.Underline, platformStyle = wavyStyle),
+                    TextDecorationStyle.STRAIGHT
+                )
             }
             err.findAll(it).forEach {
-                composeEditor.addTextMarker(it.range.start,it.range.endInclusive-it.range.start+1, SpanStyle(color = Color.Red, textDecoration = TextDecoration.Underline,platformStyle = wavyStyle))
+                composeEditor.addTextMarker(
+                    it.range.start, it.range.endInclusive - it.range.start + 1,
+                    SpanStyle(color = Color.Red),//, textDecoration = TextDecoration.Underline, platformStyle = wavyStyle),
+                    TextDecorationStyle.SQUIGGLY
+                )
             }
 
         }
@@ -159,35 +167,35 @@ class test_CodeEditor {
         ) {
             Surface {
                 composeEditor.content(
-                    textStyle = TextStyle(fontFamily = FontFamily.Cursive),
+                    //textStyle = TextStyle(fontFamily = FontFamily.Cursive),
                     autocompleteModifier = Modifier.width(500.dp).heightIn(30.dp, 300.dp)
                 )
             }
         }
     }
 
-/*
-    @Test
-    fun main3() {
+    /*
+        @Test
+        fun main3() {
 
-        var composeEditor = ComposableCodeEditor3(
-            initialText = """
-                    \red{Hello} \blue{World}
-                """.trimIndent(),
-            getLineTokens = { lineNumber, lineStartPosition, lineText -> getLineTokens(lineNumber, lineStartPosition, lineText) },
-            requestAutocompleteSuggestions = { position, text, result -> requestAutocompleteSuggestions(position, text, result) }
+            var composeEditor = ComposableCodeEditor3(
+                initialText = """
+                        \red{Hello} \blue{World}
+                    """.trimIndent(),
+                getLineTokens = { lineNumber, lineStartPosition, lineText -> getLineTokens(lineNumber, lineStartPosition, lineText) },
+                requestAutocompleteSuggestions = { position, text, result -> requestAutocompleteSuggestions(position, text, result) }
 
-        )
+            )
 
-        singleWindowApplication(
-            title = "Code Editor Test",
-        ) {
-            Surface {
-                composeEditor.content()
+            singleWindowApplication(
+                title = "Code Editor Test",
+            ) {
+                Surface {
+                    composeEditor.content()
+                }
             }
         }
-    }
-*/
+    */
     private fun requestAutocompleteSuggestions(request: AutocompleteRequestData, result: AutocompleteSuggestion) {
         when {
             request.depthDelta == 0 -> result.provide(
@@ -196,6 +204,7 @@ class test_CodeEditor {
                     AcItem("else")
                 )
             )
+
             else -> result.provide(
                 listOf(
                     AcItem("if"),
@@ -217,11 +226,11 @@ class test_CodeEditor {
     }
 
     fun getLineTokens(lineText: String): List<EditorSegmentStyle> {
-       val t1 = Regex("[\\\\]red[{](.*)[}]").findAll(lineText).map {
+        val t1 = Regex("[\\\\]red[{](.*)[}]").findAll(lineText).map {
             it.range.first
             object : EditorSegmentStyle {
                 override val start: Int get() = it.range.first
-                override val finish: Int get() = it.range.last+1
+                override val finish: Int get() = it.range.last + 1
                 override val style: SpanStyle get() = SpanStyle(color = Color.Red)
             }
         }
@@ -229,7 +238,7 @@ class test_CodeEditor {
             it.range.first
             object : EditorSegmentStyle {
                 override val start: Int get() = it.range.first
-                override val finish: Int get() = it.range.last+1
+                override val finish: Int get() = it.range.last + 1
                 override val style: SpanStyle get() = SpanStyle(color = Color.Blue, textDecoration = TextDecoration.None)
             }
         }
@@ -237,7 +246,7 @@ class test_CodeEditor {
             it.range.first
             object : EditorSegmentStyle {
                 override val start: Int get() = it.range.first
-                override val finish: Int get() = it.range.last+1
+                override val finish: Int get() = it.range.last + 1
                 override val style: SpanStyle get() = SpanStyle(color = Color.Magenta)
             }
         }
@@ -245,7 +254,7 @@ class test_CodeEditor {
             it.range.first
             object : EditorSegmentStyle {
                 override val start: Int get() = it.range.first
-                override val finish: Int get() = it.range.last+1
+                override val finish: Int get() = it.range.last + 1
                 override val style: SpanStyle get() = SpanStyle(color = Color(0f, 0.7f, 0f), textDecoration = TextDecoration.Underline)
             }
         }

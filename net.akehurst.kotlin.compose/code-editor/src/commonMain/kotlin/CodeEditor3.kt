@@ -45,7 +45,9 @@ import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.input.key.*
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.SpanStyle
@@ -55,13 +57,22 @@ import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.compose.ui.zIndex
 import kotlinx.coroutines.CoroutineScope
+import me.saket.extendedspans.ExtendedSpans
+import me.saket.extendedspans.SquigglyUnderlineSpanPainter
+import me.saket.extendedspans.drawBehind
+import me.saket.extendedspans.rememberSquigglyUnderlineAnimator
 import net.akehurst.kotlin.compose.editor.api.AutocompleteFunction
 import net.akehurst.kotlin.compose.editor.api.EditorSegmentStyle
 import net.akehurst.kotlin.compose.editor.api.LineTokensFunction
+import net.akehurst.kotlin.compose.editor.api.TextDecorationStyle
 import kotlin.Any
+import kotlin.math.PI
+import kotlin.math.ceil
 import kotlin.math.roundToInt
+import kotlin.math.sin
 
 /*
  * KEY_PRESSED
@@ -106,7 +117,7 @@ fun CodeEditor3(
         initialText = "",
         defaultTextStyle = SpanStyle(color = MaterialTheme.colorScheme.onBackground),
         onTextChange = {},
-        requestAutocompleteSuggestions = {  _, _ -> },
+        requestAutocompleteSuggestions = { _, _ -> },
     )
 ) {
     val MARGIN_WIDTH = 20.dp
@@ -145,7 +156,7 @@ fun CodeEditor3(
                         text = ann.text,
                         modifier = marginItemHoverModifier
                             .offset(
-                                y = ann.offsetFromTopOfViewport(state.viewFirstLine, textLayoutResult) + ann.lineHeight(textLayoutResult)/2,
+                                y = ann.offsetFromTopOfViewport(state.viewFirstLine, textLayoutResult) + ann.lineHeight(textLayoutResult) / 2,
                                 x = MARGIN_WIDTH / 2
                             )
                             .background(color = MaterialTheme.colorScheme.surfaceVariant)
@@ -170,7 +181,8 @@ fun CodeEditor3(
                     .fillMaxSize()
                     .onPreviewKeyEvent { ev -> state.handlePreviewKeyEvent(ev) }
                     .onKeyEvent { ev -> state.handleKeyEvent(ev) }
-                    .focusRequester(state.focusRequester),
+                    .focusRequester(state.focusRequester)
+                    .drawBehind(state.extendedSpans),
                 onTextLayout = { r ->
                     r.invoke()?.let { state.onInputTextLayout(it) }
                 },
@@ -209,9 +221,26 @@ class EditorState3(
     initialText: String = "",
     val defaultTextStyle: SpanStyle = SpanStyle(color = Color.Black, background = Color.White),
     val onTextChange: (CharSequence) -> Unit = {},
-    requestAutocompleteSuggestions: AutocompleteFunction = {_, _ -> }
+    requestAutocompleteSuggestions: AutocompleteFunction = { _, _ -> }
 ) {
     companion object {
+        val STRAIGHT = SquigglyUnderlineSpanPainter(
+            "STRAIGHT",
+            width = 3.sp,
+            wavelength = 20.sp,
+            amplitude = 0.sp,
+            bottomOffset = 2.sp,
+            //animator = underlineAnimator
+        )
+        val SQUIGGLY = SquigglyUnderlineSpanPainter(
+            "SQUIGGLY",
+            width = 3.sp,
+            wavelength = 15.sp,
+            amplitude = 2.sp,
+            bottomOffset = 2.sp,
+            //animator = underlineAnimator
+        )
+
         fun annotateText(rawText: CharSequence, viewFirstLine: Int, viewLastLine: Int, lineTokens: Map<Int, List<EditorSegmentStyle>>, markers: List<TextMarkerDefault>): AnnotatedString {
             return if (rawText.isEmpty()) {
                 AnnotatedString(rawText.toString())
@@ -238,7 +267,12 @@ class EditorState3(
                         val offsetStart = (marker.position).coerceIn(0, rawText.length)
                         val offsetFinish = (marker.position + marker.length).coerceIn(0, rawText.length)
                         // println("Style at: ${offsetStart} .. ${offsetFinish}")
-                        addStyle(marker.style, offsetStart, offsetFinish)
+                        val ss = when (marker.decoration) {
+                            TextDecorationStyle.NONE -> null
+                            TextDecorationStyle.STRAIGHT -> STRAIGHT.decorate(marker.style, offsetStart, offsetFinish, builder = this)
+                            TextDecorationStyle.SQUIGGLY -> SQUIGGLY.decorate(marker.style, offsetStart, offsetFinish, builder = this)
+                        }
+                        ss?.let { addStyle(it, offsetStart, offsetFinish) }
                     }
                 }
             }
@@ -300,6 +334,9 @@ class EditorState3(
         textMarkersState.markers.filter { viewFirstLineStartTextPosition <= it.position && it.position <= viewLastLineFinishTextPosition }
     }
 
+    // val underlineAnimator = rememberSquigglyUnderlineAnimator()
+    val extendedSpans = ExtendedSpans(STRAIGHT, SQUIGGLY)
+
     fun handlePreviewKeyEvent(ev: KeyEvent): Boolean {
         //println("$ev ${ev.key} ${ev.key.keyCode}")
         var handled = true
@@ -350,6 +387,8 @@ class EditorState3(
         autocompleteState.close()
         updateViewDetails(textLayoutResult)
         lastTextLayoutResult = textLayoutResult
+        //addTextMarkers(textLayoutResult)
+        extendedSpans.onTextLayout(textLayoutResult)
     }
 
     fun refresh() {
@@ -409,5 +448,29 @@ class EditorState3(
             buffer.changeTracker.trackChange(0, rawText.length, rawText.length)
         }
     }
+
+//    private fun addTextMarkers(textLayoutResult: TextLayoutResult) {
+//        val annText = textLayoutResult.layoutInput.text
+//        val rawText = textLayoutResult.layoutInput.text.toString()
+//        val painters = mutableListOf<SquigglyUnderlineSpanPainter>()
+//        // annotate from markers
+//        for (marker in this.textMarkersVisible) {
+//            // println("Marker at: ${marker.position} length ${marker.length} line $lineNum")
+//            val offsetStart = (marker.position).coerceIn(0, rawText.length)
+//            val offsetFinish = (marker.position + marker.length).coerceIn(0, rawText.length)
+//            // println("Style at: ${offsetStart} .. ${offsetFinish}")
+//            val p = SquigglyUnderlineSpanPainter(
+//                width = 4.sp,
+//                wavelength = 20.sp,
+//                amplitude = 2.sp,
+//                bottomOffset = 2.sp,
+//                //animator = underlineAnimator
+//            )
+//            painters.add(p)
+//        }
+//
+//        extendedSpans.extend(annText)
+//        extendedSpans.onTextLayout(textLayoutResult)
+//    }
 
 }

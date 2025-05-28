@@ -30,6 +30,8 @@ import net.akehurst.kotlin.compose.editor.api.ComposeCodeEditor
 import net.akehurst.kotlin.compose.editor.api.EditorSegmentStyle
 import net.akehurst.kotlin.compose.editor.api.LineTokensFunction
 import net.akehurst.kotlin.compose.editor.api.MarginItem
+import net.akehurst.kotlin.compose.editor.api.TextDecorationStyle
+
 /*
 class ComposableCodeEditor(
     initialText: String = "",
@@ -236,8 +238,8 @@ class ComposableCodeEditor3(
         editorState.textMarkersState.clear()
     }
 
-    override fun addTextMarker(position: Int, length: Int, style: SpanStyle) {
-        editorState.textMarkersState.addMarker(position, length, style)
+    override fun addTextMarker(position: Int, length: Int, style: SpanStyle, decoration:TextDecorationStyle) {
+        editorState.textMarkersState.addMarker(position, length, style,decoration)
     }
 
     @Composable

@@ -19,11 +19,13 @@ package net.akehurst.kotlin.compose.editor
 import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.StringAnnotation
+import net.akehurst.kotlin.compose.editor.api.TextDecorationStyle
 
 data class TextMarkerDefault(
     val position:Int,
     val length:Int,
-    val style:SpanStyle
+    val style:SpanStyle,
+    val decoration:TextDecorationStyle
 )
 
 class TextMarkerState {
@@ -34,8 +36,8 @@ class TextMarkerState {
         markers.clear()
     }
 
-    fun addMarker(position: Int, length: Int, style: SpanStyle) {
-        markers.add(TextMarkerDefault(position, length, style))
+    fun addMarker(position: Int, length: Int, style: SpanStyle, decoration: TextDecorationStyle) {
+        markers.add(TextMarkerDefault(position, length, style, decoration))
     }
 
 }
