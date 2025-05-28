@@ -28,6 +28,8 @@ import androidx.compose.ui.text.ExperimentalTextApi
 import androidx.compose.ui.text.PlatformSpanStyle
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.TextDecorationLineStyle
+import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.singleWindowApplication
@@ -121,6 +123,7 @@ class test_CodeEditor {
             initialText = """
                     \red{Hello} \blue{World}
                     info
+                    green
                     error
                 """.trimIndent(),
             requestAutocompleteSuggestions = { request, result -> requestAutocompleteSuggestions(request, result) }
@@ -155,7 +158,10 @@ class test_CodeEditor {
             title = "Code Editor 3 Test",
         ) {
             Surface {
-                composeEditor.content(autocompleteModifier = Modifier.width(500.dp).heightIn(30.dp, 300.dp))
+                composeEditor.content(
+                    textStyle = TextStyle(fontFamily = FontFamily.Cursive),
+                    autocompleteModifier = Modifier.width(500.dp).heightIn(30.dp, 300.dp)
+                )
             }
         }
     }
@@ -235,7 +241,15 @@ class test_CodeEditor {
                 override val style: SpanStyle get() = SpanStyle(color = Color.Magenta)
             }
         }
-        return (t1 + t2 + t3).toList()
+        val t4 = Regex("error|green").findAll(lineText).map {
+            it.range.first
+            object : EditorSegmentStyle {
+                override val start: Int get() = it.range.first
+                override val finish: Int get() = it.range.last+1
+                override val style: SpanStyle get() = SpanStyle(color = Color(0f, 0.7f, 0f), textDecoration = TextDecoration.Underline)
+            }
+        }
+        return (t1 + t2 + t3 + t4).toList()
     }
 
 }

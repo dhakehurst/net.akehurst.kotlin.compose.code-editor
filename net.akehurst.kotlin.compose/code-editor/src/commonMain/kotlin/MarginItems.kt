@@ -38,7 +38,13 @@ data class MarginItemDefault(
     val interactionSource = MutableInteractionSource()
     var isHovered by mutableStateOf(false)
 
-    fun offsetFromTopOfViewport(viewTopLine:Int,textLayoutResult: TextLayoutResult): Dp {
+    fun lineHeight(textLayoutResult: TextLayoutResult): Dp {
+        val fl = textLayoutResult.getLineBottom(lineNumber) - textLayoutResult.getLineTop(lineNumber)
+        return fl.dp
+    }
+
+    fun offsetFromTopOfViewport(viewTopLine:Int, textLayoutResult: TextLayoutResult): Dp {
+        val lineBot = textLayoutResult.getLineBottom(lineNumber)
         val fl = textLayoutResult.getLineTop(lineNumber - viewTopLine)
         return fl.dp / 2
     }

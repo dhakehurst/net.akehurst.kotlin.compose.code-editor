@@ -144,7 +144,10 @@ fun CodeEditor3(
                     Text(
                         text = ann.text,
                         modifier = marginItemHoverModifier
-                            .offset(y = ann.offsetFromTopOfViewport(state.viewFirstLine, textLayoutResult) + (MARGIN_WIDTH / 2), x = MARGIN_WIDTH / 2)
+                            .offset(
+                                y = ann.offsetFromTopOfViewport(state.viewFirstLine, textLayoutResult) + ann.lineHeight(textLayoutResult)/2,
+                                x = MARGIN_WIDTH / 2
+                            )
                             .background(color = MaterialTheme.colorScheme.surfaceVariant)
                             .border(1.dp, color = MaterialTheme.colorScheme.onSurfaceVariant)
                             .hoverable(ann.interactionSource)
