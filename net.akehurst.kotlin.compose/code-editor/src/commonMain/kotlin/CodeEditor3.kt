@@ -229,7 +229,7 @@ class EditorState3(
             width = 3.sp,
             wavelength = 20.sp,
             amplitude = 0.sp,
-            bottomOffset = 2.sp,
+            bottomOffset = 1.sp,
             //animator = underlineAnimator
         )
         val SQUIGGLY = SquigglyUnderlineSpanPainter(
@@ -237,7 +237,7 @@ class EditorState3(
             width = 3.sp,
             wavelength = 15.sp,
             amplitude = 2.sp,
-            bottomOffset = 2.sp,
+            bottomOffset = 1.sp,
             //animator = underlineAnimator
         )
 

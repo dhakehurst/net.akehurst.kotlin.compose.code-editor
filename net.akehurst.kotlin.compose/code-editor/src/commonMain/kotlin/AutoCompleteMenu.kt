@@ -33,6 +33,8 @@ import androidx.compose.ui.input.key.KeyEvent
 import androidx.compose.ui.input.key.key
 import androidx.compose.ui.input.key.onPreviewKeyEvent
 import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.layout.onSizeChanged
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
@@ -57,7 +59,8 @@ fun String.fixLength(maxLen: Int) = when {
 fun <T> MutableList<T>.setOrAdd(index: Int, element: T) {
     when {
         index < this.size -> this[index] = element
-        else -> this.add(element)
+        index == this.size -> this.add(element)
+        else -> error("Not handled")
     }
 }
 
@@ -161,7 +164,14 @@ internal fun AutocompletePopup2(
                                 else -> MaterialTheme.colorScheme.onSurface
                             }
                             when (item) {
-                                is AutocompleteItemDivider -> HorizontalDivider(thickness = 2.dp, color = Color.Black)
+                                is AutocompleteItemDivider -> HorizontalDivider(
+                                    thickness = 2.dp, color = Color.Black,
+                                    modifier = Modifier
+                                        // need height of items in order to scroll
+                                        .onSizeChanged { size ->
+                                            state.dropdownItemHeight.setOrAdd(idx,size.height)
+                                        }
+                                )
                                 is AutocompleteItemContent -> {
                                     nonDividerIdx++
                                     DropdownMenuItem(
@@ -178,8 +188,8 @@ internal fun AutocompletePopup2(
                                         onClick = { state.choose(item) },
                                         modifier = Modifier
                                             // need height of items in order to scroll
-                                            .onGloballyPositioned { measuredSize ->
-                                                state.dropdownItemHeight.add(measuredSize.size.height)
+                                            .onSizeChanged { size ->
+                                                    state.dropdownItemHeight.setOrAdd(idx,size.height)
                                             }
                                             .background(color = rowBgColour)
                                     )
@@ -235,7 +245,7 @@ class AutocompleteStateCompose(
         //println(selectedIndex)
         scope?.launch {
             val dist = dropdownItemHeight.take(selectedIndex).sum()
-            scrollState.scrollTo(dist)
+            scrollState.scrollTo(dist-100)
         }
     }
 
@@ -330,4 +340,5 @@ class AutocompleteStateCompose(
             requestAutocompleteSuggestions.invoke(AutocompleteRequestData(getCursorPosition(), getText(), isOpen, selectedIndex, proposalPathDelta, depthDelta), result)
         }
     }
+
 }

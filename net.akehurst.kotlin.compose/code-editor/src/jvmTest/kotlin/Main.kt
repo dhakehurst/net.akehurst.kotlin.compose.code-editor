@@ -209,6 +209,7 @@ class test_CodeEditor {
                 listOf(
                     AcItem("if"),
                     AcItem("else"),
+                    AcItem("this is \n a high \n menu item\n to test it"),
                     AcItem("while"),
                     AcItem("when"),
                     AcItem("fun"),
@@ -219,7 +220,6 @@ class test_CodeEditor {
                     AcItem("data"),
                     AcItem("value"),
                     AcItem("enum"),
-                    AcItem("class"),
                 )
             )
         }
