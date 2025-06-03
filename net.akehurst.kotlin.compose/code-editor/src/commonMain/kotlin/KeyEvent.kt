@@ -19,8 +19,11 @@ package net.akehurst.kotlin.compose.editor
 import androidx.compose.ui.input.key.Key
 import androidx.compose.ui.input.key.KeyEvent
 import androidx.compose.ui.input.key.isCtrlPressed
+import androidx.compose.ui.input.key.isShiftPressed
 import androidx.compose.ui.input.key.key
 import androidx.compose.ui.input.key.utf16CodePoint
 
 val KeyEvent.isCtrlEnter get() = (key == Key.Enter || utf16CodePoint == '\n'.code) && isCtrlPressed
 val KeyEvent.isCtrlSpace get() = (key == Key.Spacebar || utf16CodePoint == ' '.code) && isCtrlPressed
+val KeyEvent.isUndo get() = (key == Key.Z || utf16CodePoint == 'z'.code) && isCtrlPressed
+val KeyEvent.isRedo get() = (key == Key.Z || utf16CodePoint == 'z'.code) && isCtrlPressed && isShiftPressed

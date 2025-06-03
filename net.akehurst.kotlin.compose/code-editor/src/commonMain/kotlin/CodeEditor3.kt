@@ -60,6 +60,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.zIndex
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.launch
 import me.saket.extendedspans.ExtendedSpans
 import me.saket.extendedspans.SquigglyUnderlineSpanPainter
 import me.saket.extendedspans.drawBehind
@@ -314,9 +315,17 @@ class EditorState3(
     val autocompleteState by mutableStateOf(
         AutocompleteStateCompose(
             getText = { this.inputTextFieldState.text },
-            getCursorPosition = { this.inputTextFieldState.selection.start },
+            getCursorPosition = { this.inputTextFieldState.selection.min },
             getMenuOffset = { cursorPos() },
-            insertText = { txt -> this.inputTextFieldState.edit { this.insert(inputTextFieldState.selection.start, txt) } },
+            insertText = { offset, txt ->
+                val start = inputTextFieldState.selection.min
+                val end = inputTextFieldState.selection.max
+//                val s = minOf(start,end)
+//                val e = maxOf(start,end)
+                this.inputTextFieldState.edit {
+                    this.replace(start - offset, end, txt)
+                }
+            },
             requestAutocompleteSuggestions = requestAutocompleteSuggestions
         )
     )
@@ -362,19 +371,32 @@ class EditorState3(
         return handled
     }
 
+    @OptIn(ExperimentalFoundationApi::class)
     fun handleKeyEvent(ev: KeyEvent): Boolean {
         //println("$ev ${ev.key} ${ev.key.keyCode}")
         return when (ev.type) {
             // KeyDown | KeyUp | KeyPressed
             else -> when {
                 ev.isCtrlSpace -> true
+//                ev.isUndo -> {
+//                    inputTextFieldState.undoState.undo()
+//                    true
+//                }
+//
+//                ev.isRedo -> {
+//                    inputTextFieldState.undoState.redo()
+//                    true
+//                }
+
                 else -> false
             }
         }
     }
 
     fun onInputChange(newText: CharSequence) {
-        onTextChange(newText)
+        scope?.launch {
+            onTextChange(newText)
+        }
     }
 
     fun onInputScroll(i: ScrollState) {
@@ -392,6 +414,7 @@ class EditorState3(
     }
 
     fun refresh() {
+        //FIXME: calling this seem to stop the undo/redo from working...not sure it is even needed
         // create an edit causing a recomposition
         // the refresh requires triggering of a text layout
         inputTextFieldState.edit {

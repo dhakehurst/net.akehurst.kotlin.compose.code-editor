@@ -16,15 +16,13 @@
 
 package net.akehurst.kotlin.compose.editor
 
-import androidx.compose.foundation.*
+import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.ExperimentalFoundationApi
+import androidx.compose.foundation.ScrollState
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyListState
-import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.DropdownMenu
-import androidx.compose.material3.DropdownMenuItem
-import androidx.compose.material3.HorizontalDivider
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Text
+import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -32,9 +30,7 @@ import androidx.compose.ui.input.key.Key
 import androidx.compose.ui.input.key.KeyEvent
 import androidx.compose.ui.input.key.key
 import androidx.compose.ui.input.key.onPreviewKeyEvent
-import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.layout.onSizeChanged
-import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
@@ -42,13 +38,7 @@ import androidx.compose.ui.unit.em
 import androidx.compose.ui.window.PopupProperties
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.launch
-import net.akehurst.kotlin.compose.editor.api.AutocompleteFunction
-import net.akehurst.kotlin.compose.editor.api.AutocompleteItem
-import net.akehurst.kotlin.compose.editor.api.AutocompleteItemContent
-import net.akehurst.kotlin.compose.editor.api.AutocompleteItemDivider
-import net.akehurst.kotlin.compose.editor.api.AutocompleteRequestData
-import net.akehurst.kotlin.compose.editor.api.AutocompleteState
-import net.akehurst.kotlin.compose.editor.api.AutocompleteSuggestion
+import net.akehurst.kotlin.compose.editor.api.*
 
 fun String.fixLength(maxLen: Int) = when {
     maxLen < 0 -> this
@@ -60,7 +50,12 @@ fun <T> MutableList<T>.setOrAdd(index: Int, element: T) {
     when {
         index < this.size -> this[index] = element
         index == this.size -> this.add(element)
-        else -> error("Not handled")
+        else -> {
+            while(this.size < index) {
+                this.add(-1 as T)
+            }
+            this.add(element)
+        }
     }
 }
 
@@ -174,10 +169,22 @@ internal fun AutocompletePopup2(
                                 )
                                 is AutocompleteItemContent -> {
                                     nonDividerIdx++
-                                    DropdownMenuItem(
+//                                    DropdownMenuItem(
+                                    MyDropdownMenuItem(
                                         text = {
                                             Row(
                                                 modifier = Modifier
+//                                                    .layout { measurable, constraints ->
+//                                                        val placeable = measurable.measure(constraints)
+//                                                        state.dropdownItemHeight.setOrAdd(idx,placeable.height)
+//                                                        layout(width = placeable.width, height = placeable.height) {
+//                                                            placeable.placeRelative(x = 0, y = 0)
+//                                                        }
+//                                                    }
+//                                                    .onSizeChanged { size ->
+//                                                        state.dropdownItemHeight.setOrAdd(idx,size.height)
+//                                                    }
+                                                    //.border(1.dp, Color.Green)
                                                     .fillMaxWidth()
                                             ) {
                                                 item.label?.let { Text(it.fixLength(state.itemLabelLength), fontSize = 0.7.em, modifier = Modifier.weight(0.3f), color = Color.Gray) }
@@ -186,11 +193,23 @@ internal fun AutocompletePopup2(
                                             }
                                         },
                                         onClick = { state.choose(item) },
+                                        contentPadding = PaddingValues(5.dp),
                                         modifier = Modifier
                                             // need height of items in order to scroll
                                             .onSizeChanged { size ->
                                                     state.dropdownItemHeight.setOrAdd(idx,size.height)
                                             }
+//                                            .height(with(LocalDensity.current) {
+//                                                state.dropdownItemHeight.getOrNull(idx)?.toDp() ?: 20.dp }
+//                                            )
+//                                            .layout { measurable, constraints ->
+//                                                val placeable = measurable.measure(constraints)
+//                                                val h = state.dropdownItemHeight.getOrNull(idx)?: 48
+//                                                layout(width = placeable.width, height = h) {
+//                                                     val yOffset = (h - placeable.height) / 2
+//                                                     placeable.placeRelative(x = 0, y = yOffset)
+//                                                }
+//                                            }
                                             .background(color = rowBgColour)
                                     )
                                 }
@@ -212,7 +231,7 @@ class AutocompleteStateCompose(
     val getText: () -> CharSequence,
     val getCursorPosition: () -> Int,
     val getMenuOffset: () -> IntOffset,
-    val insertText: (String) -> Unit,
+    val insertText: (offset:Int, text:String) -> Unit,
     val requestAutocompleteSuggestions: AutocompleteFunction
 ) : AutocompleteState {
     var scope: CoroutineScope? = null
@@ -294,8 +313,7 @@ class AutocompleteStateCompose(
         val sel = this.selectedItem
         when (sel) {
             is AutocompleteItemContent -> {
-                val textToInsert = sel.text
-                insertText(textToInsert)
+                insertText(sel.offset, sel.text)
                 close()
             }
         }
@@ -342,3 +360,4 @@ class AutocompleteStateCompose(
     }
 
 }
+

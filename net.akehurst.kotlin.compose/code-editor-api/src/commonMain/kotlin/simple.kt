@@ -14,6 +14,7 @@ data class EditorSegmentStyleSimple(
 
 data class AutocompleteItemSimple(
     override val text: String,
+    override val offset: Int,
     override val label: String?
 ) : AutocompleteItemContent {
     override fun equalTo(other: AutocompleteItem): Boolean = this == other

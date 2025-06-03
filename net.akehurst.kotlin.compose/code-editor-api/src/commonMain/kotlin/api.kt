@@ -95,6 +95,8 @@ interface AutocompleteItemContent : AutocompleteItem {
      */
     val text: String
 
+    val offset:Int
+
     /**
      * when not null will use this label in the autocomplete list with text in (...)
      */

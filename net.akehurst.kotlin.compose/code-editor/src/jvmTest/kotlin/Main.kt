@@ -40,6 +40,7 @@ import kotlin.test.Test
 data class AcItem(
     override val text: String
 ) : AutocompleteItemContent {
+    override val offset: Int get() = 0
     override val label: String? get() = text
     override fun equalTo(other: AutocompleteItem): Boolean = when {
         other !is AcItem -> false
@@ -131,7 +132,7 @@ class test_CodeEditor {
         )
         val info = Regex("info")
         val err = Regex("error")
-        val wavyStyle = PlatformSpanStyle(textDecorationLineStyle = TextDecorationLineStyle.Wavy)
+        //val wavyStyle = PlatformSpanStyle(textDecorationLineStyle = TextDecorationLineStyle.Wavy)
         composeEditor.onTextChange = {
             val lines = it.split("\n")
             composeEditor.lineStyles = lines.mapIndexed { idx, ln -> Pair(idx, getLineTokens(ln)) }.toMap()
@@ -159,7 +160,6 @@ class test_CodeEditor {
                     TextDecorationStyle.SQUIGGLY
                 )
             }
-
         }
 
         singleWindowApplication(

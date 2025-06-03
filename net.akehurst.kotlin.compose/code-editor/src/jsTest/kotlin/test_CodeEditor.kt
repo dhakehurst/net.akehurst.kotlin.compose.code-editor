@@ -39,6 +39,7 @@ import kotlin.test.Test
 data class AcItem(
     override val text: String
 ) : AutocompleteItemContent {
+    override val offset: Int get() = 0
     override val label: String? get() = text
     override fun equalTo(other: AutocompleteItem): Boolean =when {
         other !is AcItem -> false
