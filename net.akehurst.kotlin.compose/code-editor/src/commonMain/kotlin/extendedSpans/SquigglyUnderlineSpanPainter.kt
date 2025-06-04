@@ -111,7 +111,7 @@ class SquigglyUnderlineSpanPainter(
 //            }?.item?.color ?: Color.Unspecified
 
             builder.addStringAnnotation(TAG, annotation = span.color.serialize(), start = start, end = end)
-            return span//.copy(textDecoration = if (LineThrough in textDecoration) LineThrough else None)
+            return span.copy(color = Color.Unspecified)
 //        }
     }
 
