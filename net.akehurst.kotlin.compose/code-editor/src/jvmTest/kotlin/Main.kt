@@ -25,15 +25,11 @@ import androidx.compose.material3.Surface
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.ExperimentalTextApi
-import androidx.compose.ui.text.PlatformSpanStyle
 import androidx.compose.ui.text.SpanStyle
-import androidx.compose.ui.text.TextDecorationLineStyle
-import androidx.compose.ui.text.TextStyle
-import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.singleWindowApplication
-import net.akehurst.kotlin.compose.editor.ComposableCodeEditor3
+import net.akehurst.kotlin.compose.editor.ComposableCodeEditor
 import net.akehurst.kotlin.compose.editor.api.*
 import kotlin.test.Test
 
@@ -119,8 +115,8 @@ class test_CodeEditor {
 
     @OptIn(ExperimentalTextApi::class)
     @Test
-    fun main3() {
-        var composeEditor = ComposableCodeEditor3(
+    fun main() {
+        val composeEditor = ComposableCodeEditor(
             initialText = """
                     \red{Hello} \blue{World}
                     info

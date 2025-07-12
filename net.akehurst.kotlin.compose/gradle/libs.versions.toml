@@ -1,15 +1,15 @@
 [versions]
-project = "2.1.21"
+project = "2.2.0-SNAPSHOT"
 
-kotlin = "2.1.21"
-compose = "1.8.0"
+kotlin = "2.2.0"
 dokka = "2.0.0"
-exportPublic = "2.1.21"
-
-buildconfig = "5.5.1"
+exportPublic = "2.2.0"
+buildconfig = "5.6.7"
 credentials = "3.0"
 
+compose = "1.9.0-alpha03"
 material = "1.7.3"
+
 korlibs = "6.0.1"
 
 

@@ -32,153 +32,10 @@ import net.akehurst.kotlin.compose.editor.api.LineTokensFunction
 import net.akehurst.kotlin.compose.editor.api.MarginItem
 import net.akehurst.kotlin.compose.editor.api.TextDecorationStyle
 
-/*
 class ComposableCodeEditor(
     initialText: String = "",
     override var onTextChange: (String) -> Unit = {},
-    override var getLineTokens: LineTokensFunction = { _, _, _ -> emptyList() },
     override var requestAutocompleteSuggestions: AutocompleteFunction = { _, _ -> },
-) : ComposeCodeEditor {
-
-    val editorState = EditorState(
-        initialText = initialText,
-        onTextChange = { onTextChange.invoke(it) },
-        getLineTokens = { lineNumber, lineStartPosition, lineText -> getLineTokens.invoke(lineNumber, lineStartPosition, lineText) },
-        requestAutocompleteSuggestions = { request,  result -> requestAutocompleteSuggestions.invoke(request, result) }
-    )
-
-    override var rawText: String
-        get() = editorState.inputRawText
-        set(value) {
-            editorState.setNewText(value)
-        }
-
-    override var lineStyles: Map<Int, List<EditorSegmentStyle>>
-        get() = emptyMap()
-        set(value) {}
-
-    override var annotatedText
-        get() = editorState.lastTextLayoutResult?.layoutInput?.text ?: buildAnnotatedString { }
-        set(value) {
-
-        }
-
-    override val autocomplete: AutocompleteState get() = editorState.autocompleteState
-
-    override val marginItems: List<MarginItem> get() = editorState.marginItemsState.items
-
-    override fun focus() {
-        editorState.focusRequester.requestFocus()
-    }
-
-    override fun refreshTokens() = editorState.refresh()
-
-    override fun destroy() {
-        // not sure what is needed here!
-    }
-
-    override fun clearMarginItems() {
-        editorState.marginItemsState.clear()
-    }
-
-    override fun addMarginItem(lineNumber: Int, kind: String, text: String, icon: ImageVector, color: Color) {
-        editorState.marginItemsState.addAnnotation(lineNumber, kind, text, icon, color)
-    }
-
-    override fun clearTextMarkers() {
-        TODO("not implemented")
-    }
-
-    override fun addTextMarker(position: Int, length: Int, style: SpanStyle) {
-        TODO("not implemented")
-    }
-
-    @Composable
-    fun content(modifier: Modifier = Modifier.fillMaxSize()) {
-        CodeEditor(
-            modifier = modifier,
-            editorState = editorState
-        )
-    }
-
-}
-
-class ComposableCodeEditor2(
-    initialText: String = "",
-    override var onTextChange: (String) -> Unit = {},
-    override var getLineTokens: LineTokensFunction = { _, _, _ -> emptyList() },
-    override var requestAutocompleteSuggestions: AutocompleteFunction = {  _,_, _, _ -> },
-) : ComposeCodeEditor {
-
-    val editorState = EditorState2(
-        initialText = initialText,
-        onTextChange = { onTextChange.invoke(it.toString()) },
-        getLineTokens = { lineNumber, lineStartPosition, lineText -> getLineTokens.invoke(lineNumber, lineStartPosition, lineText) },
-        requestAutocompleteSuggestions = { position, text, isOpen, result -> requestAutocompleteSuggestions.invoke(position, text, isOpen, result) }
-    )
-
-    override var rawText: String
-        get() = editorState.inputRawText.toString()
-        set(value) {
-            editorState.setNewText(value)
-        }
-
-    override var lineStyles: Map<Int, List<EditorSegmentStyle>>
-        get() = emptyMap()
-        set(value) {}
-
-    override var annotatedText
-        get() = editorState.lastAnnotatedText ?: buildAnnotatedString { }
-        set(value) {
-            editorState.lastAnnotatedText = value
-            editorState.setNewText(value.text)
-        }
-
-    override val autocomplete: AutocompleteState get() = editorState.autocompleteState
-
-    override val marginItems: List<MarginItem> get() = editorState.marginItemsState.items
-
-    override fun focus() {
-        editorState.giveFocus = true
-    }
-
-    override fun refreshTokens() = editorState.refresh()
-
-    override fun destroy() {
-        // not sure what is needed here!
-    }
-
-    override fun clearMarginItems() {
-        editorState.marginItemsState.clear()
-    }
-
-    override fun addMarginItem(lineNumber: Int, kind: String, text: String, icon: ImageVector, color: Color) {
-        editorState.marginItemsState.addAnnotation(lineNumber, kind, text, icon, color)
-    }
-
-    override fun clearTextMarkers() {
-        editorState.textMarkersState.clear()
-    }
-
-    override fun addTextMarker(position: Int, length: Int, style: SpanStyle) {
-        editorState.textMarkersState.addMarker(position, length, style)
-    }
-
-    @Composable
-    fun content(modifier: Modifier = Modifier.fillMaxSize(), autocompleteModifier: Modifier = Modifier) {
-        CodeEditor2(
-            modifier = modifier,
-            autocompleteModifier = autocompleteModifier,
-            editorState = editorState
-        )
-    }
-
-}
-*/
-class ComposableCodeEditor3(
-    initialText: String = "",
-    override var onTextChange: (String) -> Unit = {},
-    override var requestAutocompleteSuggestions: AutocompleteFunction = {  _, _ -> },
 ) : ComposeCodeEditor {
 
     override var getLineTokens: LineTokensFunction
@@ -187,10 +44,10 @@ class ComposableCodeEditor3(
             error("Unsupported")
         }
 
-    val editorState = EditorState3(
+    val editorState = EditorState(
         initialText = initialText,
         onTextChange = { onTextChange.invoke(it.toString()) },
-        requestAutocompleteSuggestions = { request ,result -> requestAutocompleteSuggestions.invoke(request, result) }
+        requestAutocompleteSuggestions = { request, result -> requestAutocompleteSuggestions.invoke(request, result) }
     )
 
     override var rawText: String
@@ -238,18 +95,18 @@ class ComposableCodeEditor3(
         editorState.textMarkersState.clear()
     }
 
-    override fun addTextMarker(position: Int, length: Int, style: SpanStyle, decoration:TextDecorationStyle) {
-        editorState.textMarkersState.addMarker(position, length, style,decoration)
+    override fun addTextMarker(position: Int, length: Int, style: SpanStyle, decoration: TextDecorationStyle) {
+        editorState.textMarkersState.addMarker(position, length, style, decoration)
     }
 
     @Composable
     fun content(
-        textStyle:TextStyle = TextStyle.Default,
+        textStyle: TextStyle = TextStyle.Default,
         modifier: Modifier = Modifier.fillMaxSize(),
         autocompleteModifier: Modifier = Modifier,
         marginItemHoverModifier: Modifier = Modifier
     ) {
-        CodeEditor3(
+        CodeEditor(
             textStyle = textStyle,
             modifier = modifier,
             autocompleteModifier = autocompleteModifier,
