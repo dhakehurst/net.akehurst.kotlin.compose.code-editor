@@ -74,6 +74,9 @@ subprojects {
     }
 
     configure<KotlinMultiplatformExtension> {
+        compilerOptions {
+            freeCompilerArgs.add("-Xcontext-sensitive-resolution")
+        }
         jvm {
             val main by compilations.getting {
                 compilerOptions.configure {

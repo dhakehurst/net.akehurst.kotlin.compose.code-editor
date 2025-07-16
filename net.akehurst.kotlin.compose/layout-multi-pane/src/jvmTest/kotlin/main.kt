@@ -20,36 +20,77 @@ class test_MultiPaneLayout {
     @OptIn(ExperimentalMaterial3Api::class)
     @Test
     fun main() {
-        val mainPane = LayoutNode.Pane(title = "Pane A") { Text("Pane A content", style = MaterialTheme.typography.headlineLarge) }
         // initial layout
-        var layoutState = MultiPaneLayoutState(
-            LayoutNode.Split(
-                orientation = SplitOrientation.Horizontal,
-                weights = listOf(0.4f, 0.6f), // Left half vs Right half
-                children = listOf(
-                    LayoutNode.Split(
-                        orientation = SplitOrientation.Vertical,
-                        weights = listOf(0.5f, 0.5f),
-                        children = listOf(
-                            mainPane,
-                            LayoutNode.Pane(title = "Pane B") { Text("Pane B content", style = MaterialTheme.typography.headlineLarge) }
-                        ),
-                    ),
-                    LayoutNode.Split(
-                        orientation = SplitOrientation.Vertical,
-                        weights = listOf(0.7f, 0.3f),
-                        children = listOf(
-                            LayoutNode.Pane(title = "Pane C") { Text("Pane C content", style = MaterialTheme.typography.headlineLarge) },
-                            LayoutNode.Pane(title = "Pane D") { Text("Pane D content", style = MaterialTheme.typography.headlineLarge) }
-                        )
-                    )
-                ),
-            )
+        val lay = layoutNode {
+            split(orientation = SplitOrientation.Horizontal) {
+                split(1f, orientation = SplitOrientation.Vertical) {
+                    pane(1f, title = "Pane A") {
+                        Text("Pane A content", style = MaterialTheme.typography.headlineLarge)
+                    }
+
+                    pane(1f, title = "Pane B") {
+                        Text("Pane B content", style = MaterialTheme.typography.headlineLarge)
+                    }
+                }
+                tabbed(1f) {
+                    pane(title = "Tab 1") {
+                        Text("Tab 1 content", style = MaterialTheme.typography.headlineLarge)
+                    }
+                    pane(title = "Tab 2") {
+                        Text("Tab 2 content", style = MaterialTheme.typography.headlineLarge)
+                    }
+                }
+                /*                    split(orientation =  SplitOrientation.Vertical) {
+                                        child(1f) {
+                                            pane(title = "Pane A") {
+                                                Text("Pane A content", style = MaterialTheme.typography.headlineLarge)
+                                            }
+                                        }
+                                        child(1f) {
+                                            pane(title = "Pane B") {
+                                                Text("Pane B content", style = MaterialTheme.typography.headlineLarge)
+                                            }
+                                        }
+                                    }*/
+            }
+        }
+        println(lay.asString(""))
+        val layoutState = MultiPaneLayoutState(
+            lay,
+            onLayoutChanged = {
+                println(it.asString(""))
+            }
         )
+
+        /*        val layoutState = MultiPaneLayoutState(
+                    LayoutNode.Split(
+                        orientation = SplitOrientation.Horizontal,
+                        weights = listOf(0.4f, 0.6f), // Left half vs Right half
+                        children = listOf(
+                            LayoutNode.Split(
+                                orientation = SplitOrientation.Vertical,
+                                weights = listOf(0.5f, 0.5f),
+                                children = listOf(
+                                    mainPane,
+                                    LayoutNode.Pane(title = "Pane B") { Text("Pane B content", style = MaterialTheme.typography.headlineLarge) }
+                                ),
+                            ),
+                            LayoutNode.Split(
+                                orientation = SplitOrientation.Vertical,
+                                weights = listOf(0.7f, 0.3f),
+                                children = listOf(
+                                    LayoutNode.Pane(title = "Pane C") { Text("Pane C content", style = MaterialTheme.typography.headlineLarge) },
+                                    LayoutNode.Pane(title = "Pane D") { Text("Pane D content", style = MaterialTheme.typography.headlineLarge) }
+                                )
+                            )
+                        ),
+                    )
+                )*/
 
         singleWindowApplication(
             title = "Demo MultiPaneLayout",
-        ) {
+        )
+        {
             MaterialTheme {
                 Scaffold(
                     topBar = {
@@ -58,7 +99,10 @@ class test_MultiPaneLayout {
                             actions = {
                                 Button(
                                     onClick = {
-                                        layoutState.rootLayout = mainPane.addPane( layoutState.rootLayout, LayoutNode.Pane(title = "New Pane") { Text("New Pane content", style = MaterialTheme.typography.headlineLarge) })
+                                        layoutState.findTabbedOrNull { true }?.let { tgt ->
+                                            val afterId = tgt.children.last().id
+                                            layoutState.addPane(tgt.id, afterId, Pane(title = "New Pane") { Text("New Pane content", style = MaterialTheme.typography.headlineLarge) })
+                                        }
                                     }
                                 ) {
                                     Text("Add Pane")
@@ -87,8 +131,7 @@ class test_MultiPaneLayout {
                             .padding(innerPadding)
                     ) {
                         MultiPaneLayout(
-                            layoutState = layoutState,
-                            onLayoutChanged = { newLayout -> layoutState.rootLayout = newLayout }
+                            layoutState = layoutState
                         )
                     }
                 }

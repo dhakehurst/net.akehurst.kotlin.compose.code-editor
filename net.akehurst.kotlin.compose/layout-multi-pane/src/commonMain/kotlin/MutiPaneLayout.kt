@@ -20,6 +20,7 @@ import androidx.compose.animation.core.animateOffsetAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.Orientation
 import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.foundation.gestures.draggable
@@ -27,13 +28,13 @@ import androidx.compose.foundation.gestures.rememberDraggableState
 import androidx.compose.foundation.layout.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
-import androidx.compose.runtime.setValue
-import androidx.compose.runtime.snapshots.SnapshotStateMap
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Rect
-import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.graphics.*
+import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.graphics.vector.path
 import androidx.compose.ui.input.pointer.PointerInputChange
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.LayoutCoordinates
@@ -45,82 +46,29 @@ import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.zIndex
+import net.akehurst.kotlin.compose.layout.multipane.LayoutNode.Companion.generateID
 import kotlin.math.roundToInt
 
-// --- Multiplatform UUID Generation ---
-// This is an 'expect' declaration in commonMain
-
-// --- 1. Data Model for Layout ---
-
 /**
- * Represents a node in the layout tree. It can be either a Pane or a Split.
+ * Represents a single content pane in the layout.
+ * @param id Unique identifier for the pane.
+ * @param title The title displayed in the pane's header.
+ * @param content The Composable content to display inside the pane.
  */
-sealed class LayoutNode {
-    companion object {
-        private var next = 0;
-        private fun generateID(): String = "id${next++}"
-    }
-
-    /**
-     * Unique ID for each node
-     */
-    abstract val id: String
-
-    fun addPane(rootLayout: LayoutNode, newPane: Pane):LayoutNode {
-        val dropTarget = DropTarget(
-            rect = Rect.Zero,
-            type = DropTargetType.SPLIT_BOTTOM,
-            targetNodeId = id,
-        )
-        return insertPaneIntoLayout(rootLayout, newPane, dropTarget)
-    }
-
-    /**
-     * Represents a single content pane in the layout.
-     * @param id Unique identifier for the pane.
-     * @param title The title displayed in the pane's header.
-     * @param content The Composable content to display inside the pane.
-     */
-    data class Pane(
-        override val id: String = generateID(),
-        val title: String,
-        val content: @Composable () -> Unit
-    ) : LayoutNode()
-
-    /**
-     * Represents a division in the layout, containing multiple child nodes.
-     * @param id Unique identifier for the split.
-     * @param orientation The orientation of the split (Horizontal for Row, Vertical for Column).
-     * @param children The list of child LayoutNodes within this split.
-     * @param weights The proportional sizes of the children. Must match the size of `children`.
-     */
-    data class Split(
-        override val id: String = generateID(),
-        val orientation: SplitOrientation,
-        val children: List<LayoutNode>,
-        val weights: List<Float>
-    ) : LayoutNode() {
-        init {
-            require(children.size == weights.size) {
-                "Number of children (${children.size}) must match number of weights (${weights.size})"
-            }
-            require(weights.all { it >= 0f }) { "Weights must be non-negative" }
-            require(weights.sum() > 0f) { "Total weight must be greater than 0" }
-        }
-    }
-
-    data class Tabbed(
-        override val id: String = generateID(),
-        val children: List<LayoutNode>
-    ): LayoutNode(){}
+data class Pane(
+    val id: String = generateID(),
+    val title: String,
+    val content: @Composable () -> Unit
+) {
+    var tabBounds: Rect? = null
+    var contentBounds: Rect? = null
 }
+
 
 /**
  * Defines the orientation of a Split.
  */
 enum class SplitOrientation { Horizontal, Vertical }
-
-// --- 2. Global Drag State (for communication between composables) ---
 
 /**
  * Represents the state of a drag operation for a pane.
@@ -130,11 +78,11 @@ enum class SplitOrientation { Horizontal, Vertical }
  * @param currentTouchScreenPosition The current absolute screen position of the touch point.
  * @param paneContent The Composable content of the dragged pane for visual representation.
  * @param paneTitle The title of the dragged pane for visual representation.
- * @param paneSize The size of the pane being dragged.
+ * @param paneBounds The bounds of the pane being dragged.
  */
 data class DragState(
     val isDragging: Boolean = false,
-    val draggedPaneId: String? = null,
+    val draggedPaneId: String?,
     val initialTouchOffsetInPane: Offset = Offset.Zero,
     val currentTouchScreenPosition: Offset = Offset.Zero,
     val paneContent: (@Composable () -> Unit)? = null,
@@ -146,55 +94,90 @@ data class DragState(
  * CompositionLocal to provide and consume the global drag state.
  * This now correctly provides a MutableState<DragState>.
  */
-val LocalDragState = compositionLocalOf { mutableStateOf(DragState()) } // Corrected: Provides MutableState<DragState>
+val LocalDragState: ProvidableCompositionLocal<MutableState<DragState?>> = compositionLocalOf { mutableStateOf(null) }
 
 /**
  * Represents a potential drop target during a drag operation.
  * This would be used for the "preview" ghosting.
  */
-data class DropTarget(
-    val rect: Rect,
-    val type: DropTargetType, // e.g., INSERT_LEFT, INSERT_RIGHT, SPLIT_TOP, REORDER
-    val targetNodeId: String, // The ID of the node being targeted
-    val targetParentId: String? = null // The ID of the target's parent split, useful for reordering
-)
+sealed class DropTarget {
+    data class Tabbed(
+        override val rect: Rect,
+        val type: Kind, // Insert new Pane as Tab BEFORE / AFTER otherId
+        override val targetNodeId: String, // The ID of the node being dropped into
+        val otherId: String? = null // The ID of the pane/tabbed that is before/after
+    ) : DropTarget() {
+        enum class Kind { BEFORE, AFTER }
 
-enum class DropTargetType {
-    INSERT_LEFT, INSERT_RIGHT, INSERT_TOP, INSERT_BOTTOM, // Insert into an empty space or new split
-    SPLIT_LEFT, SPLIT_RIGHT, SPLIT_TOP, SPLIT_BOTTOM,     // Split an existing pane
-    TAB_LEFT, TAB_RIGHT,
-    REORDER_BEFORE, REORDER_AFTER,                        // Reorder within an existing split
-    NONE // No valid drop target
+        override fun previewRect(offset: Offset): Rect = when (type) {
+            DropTarget.Tabbed.Kind.BEFORE -> Rect(offset.x, offset.y, offset.x + 5, offset.y + rect.height)
+            DropTarget.Tabbed.Kind.AFTER -> Rect(offset.x + rect.width - 5, offset.y, offset.x + rect.width, offset.y + rect.height)
+        }
+
+        override fun toString(): String = "DropTarget.Tabbed $type $targetNodeId $otherId $rect"
+    }
+
+    data class Split(
+        override val rect: Rect,
+        val type: Kind, // e.g., Split target (Tabbed) placing newPane/Tabbed BEFORE/AFTER otherId
+        override val targetNodeId: String, // The ID of the node being dropped into
+        val otherId: String? = null // The ID of the pane/tabbed that is before/after
+    ) : DropTarget() {
+        enum class Kind { LEFT, RIGHT, TOP, BOTTOM }
+
+        override fun previewRect(offset: Offset): Rect = when (type) {
+            Kind.LEFT -> Rect(offset.x, offset.y, offset.x + rect.width / 2, offset.y + rect.height)
+            Kind.RIGHT -> Rect(offset.x + rect.width / 2, offset.y, offset.x + rect.width, offset.y + rect.height)
+            Kind.TOP -> Rect(offset.x, offset.y, offset.x + rect.width, offset.y + rect.height / 2)
+            Kind.BOTTOM -> Rect(offset.x, offset.y + rect.height / 2, offset.x + rect.width, offset.y + rect.height)
+        }
+
+        override fun toString(): String = "DropTarget.Split $type $targetNodeId $otherId $rect"
+    }
+
+    data class Reorder(
+        override val rect: Rect,
+        val type: Kind, // e.g., Reorder Split content placing target (Tabbed) BEFORE / AFTER otherId
+        override val targetNodeId: String, // The ID of the node being dropped into
+        val otherId: String? = null // The ID of the pane/tabbed that is before/after
+    ) : DropTarget() {
+        enum class Kind { BEFORE, AFTER }
+
+        override fun previewRect(offset: Offset): Rect = when (type) {
+            Kind.BEFORE -> Rect(offset.x, offset.y, offset.x + rect.width, offset.y + rect.height / 2)
+            Kind.AFTER -> Rect(offset.x, offset.y + rect.height / 2, offset.x + rect.width, offset.y + rect.height)
+        }
+
+        override fun toString(): String = "DropTarget.Reorder $type $targetNodeId $otherId $rect"
+    }
+
+    abstract val rect: Rect
+    abstract val targetNodeId: String?
+
+    abstract fun previewRect(offset: Offset): Rect
 }
-
-// --- 3. Main Multi-Window Layout Composable ---
 
 /**
  * The main composable for the multi-window tiled layout.
  * Manages the root layout node and global drag state.
- * @param initialLayout The initial layout structure.
+ * @param layoutState The MultiPaneLayoutState.
  * @param modifier Modifier for the overall layout.
  * @param splitterThickness The thickness of the splitters.
- * @param onLayoutChanged Callback triggered when the layout structure changes (e.g., after a drag/drop).
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun MultiPaneLayout(
     layoutState: MultiPaneLayoutState,
     modifier: Modifier = Modifier,
-    splitterThickness: Dp = 8.dp,
-    onLayoutChanged: (LayoutNode) -> Unit = {}
+    splitterThickness: Dp = 8.dp
 ) {
+    println("*** Composing ***")
     var state by remember { mutableStateOf(layoutState) }
     // dragState is now the MutableState<DragState> object
-    val dragState = remember { mutableStateOf(DragState()) }
-    val coroutineScope = rememberCoroutineScope()
+    val dragState: MutableState<DragState?> = remember { mutableStateOf(null) }
 
     // State for the potential drop target (for preview ghosting)
     var potentialDropTarget by remember { mutableStateOf<DropTarget?>(null) }
-
-    // Map to store the global bounds of all panes, updated via onGloballyPositioned
-    val paneBoundsMap = remember { mutableStateMapOf<String, Rect>() }
 
     // State to hold the LayoutCoordinates of the root Box (MultiWindowLayout itself)
     var rootLayoutCoordinates by remember { mutableStateOf<LayoutCoordinates?>(null) }
@@ -210,21 +193,24 @@ fun MultiPaneLayout(
         ) {
             // Render the actual layout
             LayoutNodeRenderer(
+                state = state,
                 node = state.rootLayout,
                 splitterThickness = splitterThickness,
                 onSplitterDrag = { splitId, newWeights ->
-                    state.rootLayout = updateSplitWeights(state.rootLayout, splitId, newWeights)
-                    onLayoutChanged(state.rootLayout)
+                    val newLayout = state.updateSplitWeights(state.rootLayout, splitId, newWeights)
+                    state.setRootLayout(newLayout)
                 },
                 // Pass callback to update pane bounds map
-                onPaneBoundsChanged = { paneId, rect ->
-                    paneBoundsMap[paneId] = rect
+                onPaneBoundsChanged = { paneId, isTab, rect ->
+                    // if (isTab) println("** onPaneBoundsChanged: $paneId, $isTab, $rect")
+                    //    state.paneBoundsMap[Pair(isTab, paneId)] = rect
                 },
                 // Callbacks for drag events from panes
                 onPaneDragStart = { paneId, title, content, initialTouchOffsetInPane, initialTouchScreenPosition, paneBounds ->
                     dragState.value = DragState( // Corrected: Update the value of the MutableState
                         isDragging = true,
                         draggedPaneId = paneId,
+
                         initialTouchOffsetInPane = initialTouchOffsetInPane,
                         currentTouchScreenPosition = initialTouchScreenPosition,
                         paneContent = content,
@@ -233,42 +219,39 @@ fun MultiPaneLayout(
                     )
                 },
                 onPaneDrag = { currentScreenPosition ->
-                    println("** currentScreenPosition: $currentScreenPosition")
-                    dragState.value = dragState.value.copy(currentTouchScreenPosition = currentScreenPosition) // Corrected: Update the value
-
+                    val ds = dragState.value?.copy(currentTouchScreenPosition = currentScreenPosition)
+                    dragState.value = ds
                     // Calculate potential drop target based on current drag position and pane bounds
-                    potentialDropTarget = calculateDropTarget(
+                    val dt = state.calculateDropTarget(
                         rootLayout = state.rootLayout,
-                        draggedPaneId = dragState.value.draggedPaneId!!,
+                        draggedPaneId = ds!!.draggedPaneId!!,
                         currentDragPosition = currentScreenPosition,
-                        paneBoundsMap = paneBoundsMap
+                        //    paneBoundsMap = state.paneBoundsMap
                     )
+                    potentialDropTarget = dt
                 },
                 onPaneDragEnd = {
                     // Implement the actual layout modification based on potentialDropTarget
-                    if (potentialDropTarget != null && dragState.value.draggedPaneId != null) {
-                        state.rootLayout = applyDrop(
+                    val ds = dragState.value!!
+                    if (potentialDropTarget != null && ds.draggedPaneId != null) {
+                        state.applyDrop(
                             root = state.rootLayout,
-                            draggedPaneId = dragState.value.draggedPaneId!!,
-                            draggedPaneContent = dragState.value.paneContent!!,
-                            draggedPaneTitle = dragState.value.paneTitle,
+                            draggedPaneId = ds.draggedPaneId,
+                            draggedPaneContent = ds.paneContent!!,
+                            draggedPaneTitle = ds.paneTitle,
                             dropTarget = potentialDropTarget!!
                         )
-                        onLayoutChanged(state.rootLayout)
+
                     }
-                    dragState.value = DragState() // Corrected: Reset the value
+                    dragState.value = null // Corrected: Reset the value
                     potentialDropTarget = null // Clear preview
                 }
             )
 
             // Render the floating dragged pane visual
-            if (dragState.value.isDragging && dragState.value.draggedPaneId != null) { // Corrected: Access value
-                val renderPosition = dragState.value.currentTouchScreenPosition -dragState.value.initialTouchOffsetInPane //+ dragState.value.paneBounds.topLeft
-
-                println("--- Debug Render DragState ---")
-                println("DragState: ${dragState.value}")
-                println("renderPosition: ${renderPosition}")
-                println("------------------------------")
+            val ds = dragState.value
+            if (null != ds && ds.isDragging && ds.draggedPaneId != null) {
+                val renderPosition = ds.currentTouchScreenPosition - ds.initialTouchOffsetInPane
                 // Animate the position of the dragged pane visual
                 // The target value is the absolute screen position of the pane's top-left
                 val animatedOffsetInWindow by animateOffsetAsState(
@@ -290,8 +273,8 @@ fun MultiPaneLayout(
                             scaleY = 1.05f
                         }
                         // Use the actual pane size for the floating visual
-                        .width(with(LocalDensity.current) { dragState.value.paneBounds.width.toDp() })
-                        .height(with(LocalDensity.current) { dragState.value.paneBounds.height.toDp() })
+                        .width(with(LocalDensity.current) { ds.paneBounds.width.toDp() })
+                        .height(with(LocalDensity.current) { ds.paneBounds.height.toDp() })
                 ) {
                     Column(
                         modifier = Modifier
@@ -300,14 +283,14 @@ fun MultiPaneLayout(
                             .border(1.dp, MaterialTheme.colorScheme.primary)
                     ) {
                         Text(
-                            text = dragState.value.paneTitle, // Corrected: Access value
+                            text = dragState.value!!.paneTitle, // Corrected: Access value
                             style = MaterialTheme.typography.titleSmall,
                             color = MaterialTheme.colorScheme.onPrimaryContainer,
                             modifier = Modifier.padding(8.dp)
                         )
                         Spacer(modifier = Modifier.height(4.dp))
                         Text(
-                            text = "Drop me!",
+                            text = "Drop ${potentialDropTarget}",
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.7f),
                             modifier = Modifier.padding(horizontal = 8.dp)
@@ -318,12 +301,14 @@ fun MultiPaneLayout(
 
             potentialDropTarget?.let { target ->
                 // Convert target rect bounds from window coordinates to local coordinates of the root Box
-                val localTargetRect = rootLayoutCoordinates?.windowToLocal(target.rect.topLeft) ?: target.rect.topLeft
-
+                val offset = rootLayoutCoordinates?.windowToLocal(target.rect.topLeft) ?: target.rect.topLeft
+                val rect = target.previewRect(offset)
                 Box(
                     modifier = Modifier
-                        .offset { IntOffset(localTargetRect.x.roundToInt(), localTargetRect.y.roundToInt()) } // Use localTargetRect
-                        .size(with(LocalDensity.current) { target.rect.width.toDp() }, with(LocalDensity.current) {  target.rect.height.toDp() })
+//                        .offset { IntOffset(localTargetRect.x.roundToInt(), localTargetRect.y.roundToInt()) } // Use localTargetRect
+//                        .size(with(LocalDensity.current) { target.rect.width.toDp() }, with(LocalDensity.current) { target.rect.height.toDp() })
+                        .offset { IntOffset(rect.left.roundToInt(), rect.top.roundToInt()) } // Use localTargetRect
+                        .size(with(LocalDensity.current) { rect.width.toDp() }, with(LocalDensity.current) { rect.height.toDp() })
                         .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.2f))
                         .border(2.dp, MaterialTheme.colorScheme.primary)
                         .zIndex(99f) // Below dragged pane, above regular content
@@ -333,14 +318,380 @@ fun MultiPaneLayout(
     }
 }
 
-@Stable
-class MultiPaneLayoutState(
-    initialLayout: LayoutNode
-) {
-    var rootLayout by mutableStateOf(initialLayout)
+interface MultiPaneLayoutIcons {
+    val Close: ImageVector
 }
 
-// --- 4. Recursive Layout Node Renderer ---
+interface MultiPaneLayoutTheme {
+    val icons: MultiPaneLayoutIcons
+}
+
+object MultiPaneLayoutIconsDefault : MultiPaneLayoutIcons {
+    private var _Close: ImageVector? = null
+    override val Close: ImageVector
+        get() {
+            if (_Close != null) {
+                return _Close!!
+            }
+            _Close = ImageVector.Builder(
+                name = "Close",
+                defaultWidth = 24.dp,
+                defaultHeight = 24.dp,
+                viewportWidth = 960f,
+                viewportHeight = 960f
+            ).apply {
+                path(
+                    fill = SolidColor(Color.Black),
+                    fillAlpha = 1.0f,
+                    stroke = null,
+                    strokeAlpha = 1.0f,
+                    strokeLineWidth = 1.0f,
+                    strokeLineCap = StrokeCap.Butt,
+                    strokeLineJoin = StrokeJoin.Miter,
+                    strokeLineMiter = 1.0f,
+                    pathFillType = PathFillType.NonZero
+                ) {
+                    moveTo(256f, 760f)
+                    lineToRelative(-56f, -56f)
+                    lineToRelative(224f, -224f)
+                    lineToRelative(-224f, -224f)
+                    lineToRelative(56f, -56f)
+                    lineToRelative(224f, 224f)
+                    lineToRelative(224f, -224f)
+                    lineToRelative(56f, 56f)
+                    lineToRelative(-224f, 224f)
+                    lineToRelative(224f, 224f)
+                    lineToRelative(-56f, 56f)
+                    lineToRelative(-224f, -224f)
+                    close()
+                }
+            }.build()
+            return _Close!!
+        }
+}
+
+object MultiPaneLayoutThemeDefault : MultiPaneLayoutTheme {
+    override val icons: MultiPaneLayoutIcons = MultiPaneLayoutIconsDefault
+}
+
+@Stable
+class MultiPaneLayoutState(
+    initialLayout: LayoutNode,
+    val theme: MultiPaneLayoutTheme = MultiPaneLayoutThemeDefault,
+    val onLayoutChanged: (LayoutNode) -> Unit = {}
+) {
+    private var _rootLayout by mutableStateOf(initialLayout)
+    val rootLayout: LayoutNode get() = _rootLayout
+
+    internal fun setRootLayout(value: LayoutNode) {
+        _rootLayout = value
+        // update paneBoundsMap to only contain the ids in layout
+//        val currentPaneIds = getAllLayoutAndPaneIds()
+//        val mapPaneIds = paneBoundsMap.keys.map { it.second }.toSet()
+//        val stalePaneIds = mapPaneIds - currentPaneIds
+//        if (stalePaneIds.isNotEmpty()) {
+//            paneBoundsMap.keys.removeAll { it.second in stalePaneIds }
+//        }
+        onLayoutChanged.invoke(value)
+    }
+
+    /**
+     * Recursively updates the weights of a specific Split node in the layout tree.
+     * Returns a new LayoutNode tree with the updated split.
+     */
+    internal fun updateSplitWeights(
+        root: LayoutNode,
+        splitIdToUpdate: String,
+        newWeights: List<Float>
+    ): LayoutNode {
+        return when (root) {
+            is LayoutNode.Split -> {
+                if (root.id == splitIdToUpdate) {
+                    root.copy(weights = newWeights)
+                } else {
+                    root.copy(children = root.children.map {
+                        updateSplitWeights(it, splitIdToUpdate, newWeights)
+                    })
+                }
+            }
+
+            is LayoutNode.Tabbed -> root
+        }
+    }
+
+    fun getAllPaneIds(): Set<String> {
+        val ids = mutableSetOf<String>()
+        val queue = mutableListOf<LayoutNode>(rootLayout)
+
+        while (queue.isNotEmpty()) {
+            when (val currentNode = queue.removeAt(0)) {
+                is LayoutNode.Split -> queue.addAll(currentNode.children)
+                is LayoutNode.Tabbed -> currentNode.children.forEach { pane -> ids.add(pane.id) }
+            }
+        }
+        return ids
+    }
+
+    fun getAllLayoutAndPaneIds(): Set<String> {
+        val ids = mutableSetOf<String>()
+        val queue = mutableListOf<LayoutNode>(rootLayout)
+        while (queue.isNotEmpty()) {
+            val currentNode = queue.removeAt(0)
+            ids.add(currentNode.id)
+            when (currentNode) {
+                is LayoutNode.Split -> queue.addAll(currentNode.children)
+                is LayoutNode.Tabbed -> currentNode.children.forEach { pane -> ids.add(pane.id) }
+            }
+        }
+        return ids
+    }
+
+    fun findPaneOrNull(paneId: String): Pane? = findPaneOrNull { it.id == paneId }
+
+    fun addPane(targetTabbedId: String, afterId: String, newPane: Pane) {
+        val dropTarget = DropTarget.Tabbed(
+            rect = Rect.Zero,
+            type = DropTarget.Tabbed.Kind.AFTER,
+            targetNodeId = targetTabbedId,
+            otherId = afterId
+        )
+        val layout = rootLayout.insertPaneIntoLayout(newPane, dropTarget)
+        setRootLayout(layout)
+    }
+
+    fun removePane(paneId: String) {
+        val (layoutWithoutDragged, _) = removePaneFromLayout(rootLayout, paneId)
+        setRootLayout(layoutWithoutDragged ?: rootLayout)
+    }
+
+    fun selectTab(tabbedNodeId: String, index: Int) {
+        setRootLayout(layoutWithSelectedTab(rootLayout, tabbedNodeId, index))
+    }
+
+    fun findPaneOrNull(predicate: (Pane) -> Boolean): Pane? = rootLayout.firstPaneOfOrNull { split, tabbed, pane ->
+        if (predicate.invoke(pane)) pane else null
+    }
+
+    fun findTabbedOrNull(predicate: (LayoutNode.Tabbed) -> Boolean): LayoutNode.Tabbed? = rootLayout.firstPaneOfOrNull { split, tabbed, pane ->
+        if (predicate.invoke(tabbed)) tabbed else null
+    }
+
+    fun findSplitOrNull(predicate: (LayoutNode.Split) -> Boolean): LayoutNode.Split? = rootLayout.firstPaneOfOrNull { split, tabbed, pane ->
+        if (null != split && predicate.invoke(split)) split else null
+    }
+
+    /**
+     * Applies a drop operation to the layout tree.
+     * This function orchestrates the removal of the dragged pane from its original location
+     * and its insertion into the new location based on the drop target.
+     *
+     * @param root The current root of the LayoutNode tree.
+     * @param draggedPaneId The ID of the pane that was dragged.
+     * @param draggedPaneContent The Composable content of the dragged pane.
+     * @param draggedPaneTitle The title of the dragged pane.
+     * @param dropTarget The calculated DropTarget indicating where the pane should be dropped.
+     * @return A new LayoutNode tree after applying the drop operation.
+     */
+    internal fun applyDrop(
+        root: LayoutNode,
+        draggedPaneId: String,
+        draggedPaneContent: @Composable () -> Unit,
+        draggedPaneTitle: String,
+        dropTarget: DropTarget
+    ) {
+        // If the drop target is NONE, or if the dragged pane is dropped onto itself, do nothing.
+        if (draggedPaneId == dropTarget.targetNodeId) {
+            return
+        } else {
+            // 1. Create the new pane object that will be inserted
+            val newPane = Pane(id = draggedPaneId, title = draggedPaneTitle, content = draggedPaneContent)
+
+            // 2. Remove the dragged pane from its original location
+            // This also handles collapsing empty splits or promoting single children.
+            val (layoutWithoutDragged, _) = removePaneFromLayout(root, draggedPaneId)
+            // If the dragged pane was the root and removed, layoutWithoutDragged might be null.
+            // In that case, the newPane becomes the root if there's a valid drop target.
+            val newLayout = layoutWithoutDragged ?: LayoutNode.Split(orientation = SplitOrientation.Horizontal, children = emptyList(), weights = emptyList())
+
+            // 3. Insert the dragged pane into the new location based on dropTarget
+            val layout = newLayout.insertPaneIntoLayout(newPane, dropTarget)
+            setRootLayout(layout)
+        }
+    }
+
+    /**
+     * Recursively removes a pane from the layout tree.
+     * Handles collapsing of splits if they become empty or have only one child after removal.
+     *
+     * @param parent The current node being traversed.
+     * @param paneIdToRemove The ID of the pane to remove.
+     * @return A Pair where:
+     * - first: The new LayoutNode tree (or null if the current node was removed/collapsed).
+     * - second: The Pane that was removed (or null if not found in this branch).
+     */
+    private fun removePaneFromLayout(
+        parent: LayoutNode,
+        paneIdToRemove: String
+    ): Pair<LayoutNode?, Pane?> {
+        return when (parent) {
+            is LayoutNode.Split -> {
+                var removedPane: Pane? = null
+                val newChildren = mutableListOf<LayoutNode>()
+                val newWeights = mutableListOf<Float>()
+
+                parent.children.forEachIndexed { index, child ->
+                    val (updatedChild, foundPane) = removePaneFromLayout(child, paneIdToRemove)
+                    if (foundPane != null) {
+                        removedPane = foundPane // Pane found in a child branch
+                    }
+
+                    if (updatedChild != null) {
+                        newChildren.add(updatedChild)
+                        newWeights.add(parent.weights[index]) // Keep original weight for remaining children
+                    }
+                }
+
+                if (removedPane != null) {
+                    // Logic to collapse the split if necessary
+                    return when (newChildren.size) {
+                        0 -> null to removedPane // Split is now empty, remove it
+                        1 -> newChildren.first() to removedPane // Split has one child, promote the child
+                        else -> parent.copy(children = newChildren, weights = newWeights) to removedPane // Split still valid
+                    }
+                } else {
+                    parent to null // Pane is not found in this branch
+                }
+            }
+
+            is LayoutNode.Tabbed -> {
+                var removedPane: Pane? = null
+                val newChildren = mutableListOf<Pane>()
+                parent.children.forEachIndexed { index, child ->
+                    if (child.id == paneIdToRemove) {
+                        removedPane = child
+                    } else {
+                        newChildren.add(child)
+                    }
+                }
+                when {
+                    null == removedPane -> Pair(parent, null) // Pane is not found in this branch
+                    else -> when (newChildren.size) {
+                        0 -> Pair(null, removedPane) // Tabbed is empty, remove it
+                        else -> Pair(parent.copy(children = newChildren), removedPane)
+                    }
+                }
+            }
+        }
+    }
+
+
+    /**
+     * Calculates the potential drop target based on the current drag position.
+     * This function determines which pane is being hovered over and which type of drop operation
+     * (split, reorder) is implied by the cursor's position within that pane.
+     *
+     * @param rootLayout The current root of the LayoutNode tree.
+     * @param draggedPaneId The ID of the pane currently being dragged.
+     * @param currentDragPosition The absolute screen position of the cursor/touch.
+     * @param paneBoundsMap A map of Pane IDs to their absolute screen Rect bounds.
+     * @return A DropTarget object indicating the potential drop location, or null if no valid target.
+     */
+    internal fun calculateDropTarget(
+        rootLayout: LayoutNode,
+        draggedPaneId: String,
+        currentDragPosition: Offset
+    ): DropTarget? {
+        // Iterate through all panes
+        return rootLayout.firstPaneOfOrNull { split, tabbed, pane ->
+            //if (draggedPaneId == pane.id) {
+            //    null
+            //} else {
+            when {
+                (true == pane.tabBounds?.contains(currentDragPosition)) -> calculateDropTargetTabbed(tabbed, pane, currentDragPosition)
+                (true == pane.contentBounds?.contains(currentDragPosition)) -> calculateDropTargetSplit(split, tabbed, pane, currentDragPosition)
+                else -> null
+            }
+            //}
+        }
+    }
+
+    internal fun calculateDropTargetTabbed(
+        tabbed: LayoutNode.Tabbed,
+        targetPane: Pane,
+        currentDragPosition: Offset,
+    ): DropTarget? {
+        val rect = targetPane.tabBounds!!
+        val relativeX = (currentDragPosition.x - rect.left) / rect.width
+        val threshold = 0.5f
+        return when {
+            relativeX < threshold -> DropTarget.Tabbed(rect, DropTarget.Tabbed.Kind.BEFORE, tabbed.id, targetPane.id)
+            relativeX > (1f - threshold) -> DropTarget.Tabbed(rect, DropTarget.Tabbed.Kind.AFTER, tabbed.id, targetPane.id)
+            else -> null
+        }
+    }
+
+    internal fun calculateDropTargetSplit(
+        split: LayoutNode.Split?,
+        tabbed: LayoutNode.Tabbed,
+        targetPane: Pane,
+        currentDragPosition: Offset
+    ): DropTarget? {
+
+        val rect = targetPane.contentBounds!!
+        // Cursor is over this pane, now determine the specific drop zone
+        val relativeX = (currentDragPosition.x - rect.left) / rect.width
+        val relativeY = (currentDragPosition.y - rect.top) / rect.height
+        // Define drop zone thresholds (e.g., 25% for split, 50% for reorder)
+        val splitThreshold = 0.25f // 25% from edges for splitting
+        val reorderThreshold = 0.5f // Middle 50% for reordering
+        return when {
+            // Split Left
+            relativeX < splitThreshold -> DropTarget.Split(rect, DropTarget.Split.Kind.LEFT, tabbed.id)
+            // Split Right
+            relativeX > (1f - splitThreshold) -> DropTarget.Split(rect, DropTarget.Split.Kind.RIGHT, tabbed.id)
+            // Split Top
+            relativeY < splitThreshold -> DropTarget.Split(rect, DropTarget.Split.Kind.TOP, tabbed.id)
+            // Split Bottom
+            relativeY > (1f - splitThreshold) -> DropTarget.Split(rect, DropTarget.Split.Kind.BOTTOM, tabbed.id)
+            // Reorder (middle zone)
+            relativeX >= splitThreshold && relativeX <= (1f - splitThreshold) &&
+                    relativeY >= splitThreshold && relativeY <= (1f - splitThreshold) -> when {
+                null == split -> null
+                else -> {
+                    // Determine if reorder before or after based on orientation
+                    if (split.orientation == SplitOrientation.Horizontal) {
+                        if (relativeX < reorderThreshold) {
+                            DropTarget.Reorder(rect, DropTarget.Reorder.Kind.BEFORE, split.id, tabbed.id)
+                        } else {
+                            DropTarget.Reorder(rect, DropTarget.Reorder.Kind.AFTER, split.id, tabbed.id)
+                        }
+                    } else { // Vertical orientation
+                        if (relativeY < reorderThreshold) {
+                            DropTarget.Reorder(rect, DropTarget.Reorder.Kind.BEFORE, split.id, tabbed.id)
+                        } else {
+                            DropTarget.Reorder(rect, DropTarget.Reorder.Kind.AFTER, split.id, tabbed.id)
+                        }
+                    }
+                }
+            }
+            else -> null // No specific drop zone
+        }
+    }
+
+    private fun layoutWithSelectedTab(root: LayoutNode, targetNodeId: String, index: Int): LayoutNode {
+        return when (root) {
+            is LayoutNode.Split -> if (root.id == targetNodeId) {
+                root // id is a split not a tabbed
+            } else {
+                val newChildren = root.children.map { layoutWithSelectedTab(it, targetNodeId, index) }
+                root.copy(children = newChildren)
+            }
+
+            is LayoutNode.Tabbed -> if (root.id == targetNodeId) root.copy(selectedTabIndex = index) else root
+        }
+    }
+
+}
 
 /**
  * Recursively renders a LayoutNode tree.
@@ -355,118 +706,21 @@ class MultiPaneLayoutState(
  */
 @Composable
 private fun LayoutNodeRenderer(
+    state: MultiPaneLayoutState,
     node: LayoutNode,
     splitterThickness: Dp,
     onSplitterDrag: (String, List<Float>) -> Unit,
-    onPaneBoundsChanged: (String, Rect) -> Unit, // New callback
-    onPaneDragStart: (String, String, @Composable () -> Unit, Offset, Offset, Rect) -> Unit, // Added IntSize
+    onPaneBoundsChanged: (String, Boolean, Rect) -> Unit, // New callback
+    onPaneDragStart: (String, String, @Composable () -> Unit, Offset, Offset, Rect) -> Unit,
     onPaneDrag: (Offset) -> Unit,
     onPaneDragEnd: () -> Unit,
     modifier: Modifier = Modifier
 ) {
-    val dragState = LocalDragState.current.value // Corrected: Access the value from MutableState
-
-    // State to hold the pane's absolute bounds in the window
-    var paneBoundsInWindow by remember { mutableStateOf(Rect.Zero) }
 
     // State to hold the LayoutCoordinates of the drag handle Surface
     var dragHandleCoordinates by remember { mutableStateOf<LayoutCoordinates?>(null) }
 
-
     when (node) {
-        is LayoutNode.Pane -> {
-            Card(
-                modifier = modifier
-                    .fillMaxSize() // Pane should fill its allocated space
-                    .padding(1.dp) // Small padding to visually separate panes
-                    // Use graphicsLayer for alpha to avoid layout shifts
-                    .graphicsLayer { alpha = if (dragState.isDragging && dragState.draggedPaneId == node.id) 0f else 1f }
-                    .onGloballyPositioned { coordinates ->
-                        // Report the pane's bounds to the parent MultiWindowLayout
-                        paneBoundsInWindow = coordinates.boundsInWindow() // Update local state for pane bounds
-                        onPaneBoundsChanged(node.id, paneBoundsInWindow) // Report to parent
-                    }
-            ) {
-                Column(modifier = Modifier.fillMaxSize()) {
-                    // Title Tab - Drag Handle
-                    Surface(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .height(48.dp)
-                            .background(MaterialTheme.colorScheme.primaryContainer)
-                            .onGloballyPositioned { coordinates ->
-                                dragHandleCoordinates = coordinates // Store coordinates of the drag handle
-                            }
-                            .pointerInput(node.id) { // Use node.id as key to restart detector if ID changes
-                                detectDragGestures(
-                                    onDragStart = { initialTouchOffsetInSurface ->
-                                        val dragHandleCoords = dragHandleCoordinates
-                                        if (dragHandleCoords == null) {
-                                            println("ERROR: dragHandleCoordinates is null on drag start for pane ${node.id}")
-                                            return@detectDragGestures // Cannot proceed without coordinates
-                                        }
-
-                                        // 1. Get the absolute screen position of where the touch started
-                                        // This is the most critical part: convert the local touch offset in handle to window coordinates
-                                        val initialTouchScreenPosition = dragHandleCoords.localToWindow(initialTouchOffsetInSurface)
-
-                                        // 2. Get the absolute screen bounds of the *entire pane*
-                                        // Use the stored paneBoundsInWindow, which is updated by the outer Card's onGloballyPositioned
-                                        val currentPaneBoundsInWindow = paneBoundsInWindow
-
-                                        // 3. Calculate the offset from the *pane's* top-left to the initial touch point
-                                        val offsetRelativeToPaneTopLeft = initialTouchScreenPosition - currentPaneBoundsInWindow.topLeft
-
-                                        println("--- DRAG START DEBUG ---")
-                                        println("Pane ID: ${node.id}")
-                                        println("currentPaneBoundsInWindow): $currentPaneBoundsInWindow") // Use the directly obtained bounds
-                                        //println("dragHandleCoords.boundsInWindow(): ${dragHandleCoords.boundsInWindow()}")
-                                        println("initialTouchOffsetInSurface: $initialTouchOffsetInSurface")
-                                        println("initialTouchScreenPosition: $initialTouchScreenPosition")
-                                        println("offsetRelativeToPaneTopLeft: $offsetRelativeToPaneTopLeft")
-                                        println("------------------------")
-
-                                        onPaneDragStart(
-                                            node.id,
-                                            node.title,
-                                            node.content,
-                                            offsetRelativeToPaneTopLeft, // Corrected: Offset from pane's top-left to touch
-//                                            initialTouchOffsetInSurface, // Corrected: Offset from pane's top-left to touch
-                                            initialTouchScreenPosition, // Absolute screen position of touch
-                                            currentPaneBoundsInWindow //.size.toIntSize() // Pass the actual size of the pane
-                                        )
-                                    },
-                                    onDrag = { change: PointerInputChange, _: Offset ->
-                                        val dragHandleCoords = dragHandleCoordinates
-                                        if (dragHandleCoords == null) {
-                                            println("ERROR: dragHandleCoordinates is null on drag for pane ${node.id}")
-                                            return@detectDragGestures // Cannot proceed without coordinates
-                                        }
-                                        val currentScreenPosition = dragHandleCoords.localToWindow(change.position)
-//                                        val currentScreenPosition =change.position
-                                        // Update the current drag position based on pointer changes
-                                        onPaneDrag(currentScreenPosition)
-                                        change.consume() // Consume the event so it doesn't propagate
-                                    },
-                                    onDragEnd = { onPaneDragEnd() },
-                                    onDragCancel = { onPaneDragEnd() }
-                                )
-                            }
-                    ) {
-                        Text(
-                            text = node.title,
-                            modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
-                            style = MaterialTheme.typography.titleSmall,
-                            color = MaterialTheme.colorScheme.onPrimaryContainer
-                        )
-                    }
-                    // Pane Content
-                    Box(modifier = Modifier.weight(1f).fillMaxWidth()) {
-                        node.content()
-                    }
-                }
-            }
-        }
         is LayoutNode.Split -> {
             // State to hold the size of the current Split container (Row or Column)
             var splitContainerSize by remember { mutableStateOf(IntSize.Zero) }
@@ -484,46 +738,49 @@ private fun LayoutNodeRenderer(
                         }
                 ) {
                     node.children.forEachIndexed { index, child ->
-                        LayoutNodeRenderer(
-                            node = child,
-                            splitterThickness = splitterThickness,
-                            onSplitterDrag = onSplitterDrag,
-                            onPaneBoundsChanged = onPaneBoundsChanged, // Pass the callback down
-                            onPaneDragStart = onPaneDragStart,
-                            onPaneDrag = onPaneDrag,
-                            onPaneDragEnd = onPaneDragEnd,
-                            modifier = Modifier.weight(normalizedWeights[index])
-                        )
-                        if (index < node.children.size - 1) {
-                            Splitter(
-                                orientation = SplitOrientation.Vertical,
-                                thickness = splitterThickness,
-                                onDrag = { dragAmount ->
-                                    val newWeights = node.weights.toMutableList()
-                                    // Use the captured splitContainerSize for totalSize
-                                    val totalSize = splitContainerSize.width.toFloat()
-                                    val deltaRatio = dragAmount / totalSize
-
-                                    // Adjust weights, ensuring they stay positive
-                                    val weightBefore = newWeights[index]
-                                    val weightAfter = newWeights[index + 1]
-
-                                    val newWeightBefore = (weightBefore + deltaRatio).coerceAtLeast(0.01f)
-                                    val newWeightAfter = (weightAfter - deltaRatio).coerceAtLeast(0.01f)
-
-                                    // Re-normalize if necessary to maintain sum
-                                    val adjustment = (weightBefore + weightAfter) - (newWeightBefore + newWeightAfter)
-                                    newWeights[index] = newWeightBefore + adjustment / 2
-                                    newWeights[index + 1] = newWeightAfter + adjustment / 2
-
-                                    // Ensure final weights are still positive after adjustment
-                                    newWeights[index] = newWeights[index].coerceAtLeast(0.01f)
-                                    newWeights[index + 1] = newWeights[index + 1].coerceAtLeast(0.01f)
-
-
-                                    onSplitterDrag(node.id, newWeights)
-                                }
+                        key(child) {
+                            LayoutNodeRenderer(
+                                state = state,
+                                node = child,
+                                splitterThickness = splitterThickness,
+                                onSplitterDrag = onSplitterDrag,
+                                onPaneBoundsChanged = onPaneBoundsChanged, // Pass the callback down
+                                onPaneDragStart = onPaneDragStart,
+                                onPaneDrag = onPaneDrag,
+                                onPaneDragEnd = onPaneDragEnd,
+                                modifier = Modifier.weight(normalizedWeights[index])
                             )
+                            if (index < node.children.size - 1) {
+                                Splitter(
+                                    orientation = SplitOrientation.Vertical,
+                                    thickness = splitterThickness,
+                                    onDrag = { dragAmount ->
+                                        val newWeights = node.weights.toMutableList()
+                                        // Use the captured splitContainerSize for totalSize
+                                        val totalSize = splitContainerSize.width.toFloat()
+                                        val deltaRatio = dragAmount / totalSize
+
+                                        // Adjust weights, ensuring they stay positive
+                                        val weightBefore = newWeights[index]
+                                        val weightAfter = newWeights[index + 1]
+
+                                        val newWeightBefore = (weightBefore + deltaRatio).coerceAtLeast(0.01f)
+                                        val newWeightAfter = (weightAfter - deltaRatio).coerceAtLeast(0.01f)
+
+                                        // Re-normalize if necessary to maintain sum
+                                        val adjustment = (weightBefore + weightAfter) - (newWeightBefore + newWeightAfter)
+                                        newWeights[index] = newWeightBefore + adjustment / 2
+                                        newWeights[index + 1] = newWeightAfter + adjustment / 2
+
+                                        // Ensure final weights are still positive after adjustment
+                                        newWeights[index] = newWeights[index].coerceAtLeast(0.01f)
+                                        newWeights[index + 1] = newWeights[index + 1].coerceAtLeast(0.01f)
+
+
+                                        onSplitterDrag(node.id, newWeights)
+                                    }
+                                )
+                            }
                         }
                     }
                 }
@@ -536,52 +793,149 @@ private fun LayoutNodeRenderer(
                         }
                 ) {
                     node.children.forEachIndexed { index, child ->
-                        LayoutNodeRenderer(
-                            node = child,
-                            splitterThickness = splitterThickness,
-                            onSplitterDrag = onSplitterDrag,
-                            onPaneBoundsChanged = onPaneBoundsChanged, // Pass the callback down
-                            onPaneDragStart = onPaneDragStart,
-                            onPaneDrag = onPaneDrag,
-                            onPaneDragEnd = onPaneDragEnd,
-                            modifier = Modifier.weight(normalizedWeights[index])
-                        )
-                        if (index < node.children.size - 1) {
-                            Splitter(
-                                orientation = SplitOrientation.Horizontal,
-                                thickness = splitterThickness,
-                                onDrag = { dragAmount ->
-                                    val newWeights = node.weights.toMutableList()
-                                    // Use the captured splitContainerSize for totalSize
-                                    val totalSize = splitContainerSize.height.toFloat()
-                                    val deltaRatio = dragAmount / totalSize
-
-                                    val weightBefore = newWeights[index]
-                                    val weightAfter = newWeights[index + 1]
-
-                                    val newWeightBefore = (weightBefore + deltaRatio).coerceAtLeast(0.01f)
-                                    val newWeightAfter = (weightAfter - deltaRatio).coerceAtLeast(0.01f)
-
-                                    val adjustment = (weightBefore + weightAfter) - (newWeightBefore + newWeightAfter)
-                                    newWeights[index] = newWeightBefore + adjustment / 2
-                                    newWeights[index + 1] = newWeightAfter + adjustment / 2
-
-                                    newWeights[index] = newWeights[index].coerceAtLeast(0.01f)
-                                    newWeights[index + 1] = newWeights[index + 1].coerceAtLeast(0.01f)
-
-                                    onSplitterDrag(node.id, newWeights)
-                                }
+                        key(child) {
+                            LayoutNodeRenderer(
+                                state = state,
+                                node = child,
+                                splitterThickness = splitterThickness,
+                                onSplitterDrag = onSplitterDrag,
+                                onPaneBoundsChanged = onPaneBoundsChanged, // Pass the callback down
+                                onPaneDragStart = onPaneDragStart,
+                                onPaneDrag = onPaneDrag,
+                                onPaneDragEnd = onPaneDragEnd,
+                                modifier = Modifier.weight(normalizedWeights[index])
                             )
+                            if (index < node.children.size - 1) {
+                                Splitter(
+                                    orientation = SplitOrientation.Horizontal,
+                                    thickness = splitterThickness,
+                                    onDrag = { dragAmount ->
+                                        val newWeights = node.weights.toMutableList()
+                                        // Use the captured splitContainerSize for totalSize
+                                        val totalSize = splitContainerSize.height.toFloat()
+                                        val deltaRatio = dragAmount / totalSize
+
+                                        val weightBefore = newWeights[index]
+                                        val weightAfter = newWeights[index + 1]
+
+                                        val newWeightBefore = (weightBefore + deltaRatio).coerceAtLeast(0.01f)
+                                        val newWeightAfter = (weightAfter - deltaRatio).coerceAtLeast(0.01f)
+
+                                        val adjustment = (weightBefore + weightAfter) - (newWeightBefore + newWeightAfter)
+                                        newWeights[index] = newWeightBefore + adjustment / 2
+                                        newWeights[index + 1] = newWeightAfter + adjustment / 2
+
+                                        newWeights[index] = newWeights[index].coerceAtLeast(0.01f)
+                                        newWeights[index + 1] = newWeights[index + 1].coerceAtLeast(0.01f)
+
+                                        onSplitterDrag(node.id, newWeights)
+                                    }
+                                )
+                            }
                         }
                     }
                 }
             }
         }
-        is LayoutNode.Tabbed -> TODO()
+
+        is LayoutNode.Tabbed -> {
+            Column(
+                modifier = modifier
+                    .fillMaxSize()
+            ) {
+                PrimaryScrollableTabRow(
+                    edgePadding = 0.dp,
+                    selectedTabIndex = node.selectedTabIndex,
+                    modifier = Modifier
+                        .border(width = Dp.Hairline, color = MaterialTheme.colorScheme.onBackground)
+                        .height(30.dp)
+                        .fillMaxWidth()
+                ) {
+                    node.children.forEachIndexed { idx, child ->
+                        key(child) {
+                            Tab(
+                                selected = node.selectedTabIndex == idx,
+                                onClick = {
+                                    state.selectTab(node.id, idx)
+                                },
+                                content = {
+                                    Row {
+                                        Text(text = "${child.title} (${child.id})")
+                                        Icon(
+                                            imageVector = state.theme.icons.Close,
+                                            contentDescription = null,
+                                            modifier = Modifier
+                                                .clickable { state.removePane(child.id) }
+                                                .size(15.dp)
+                                        )
+                                    }
+                                },
+                                modifier = Modifier
+                                    .border(width = Dp.Hairline, color = MaterialTheme.colorScheme.onBackground)
+                                    .padding(10.dp)
+                                    .onGloballyPositioned { coordinates ->
+                                        dragHandleCoordinates = coordinates // Store coordinates of the drag handle
+                                        child.tabBounds = coordinates.boundsInWindow()
+                                    }
+                                    .pointerInput(node.id) { // Use child.id as key to restart detector if ID changes
+                                        detectDragGestures(
+                                            onDragStart = { initialTouchOffsetInSurface ->
+                                                val dragHandleCoords = dragHandleCoordinates
+                                                if (dragHandleCoords == null) {
+                                                    println("ERROR: dragHandleCoordinates is null on drag start for pane ${child.id}")
+                                                    return@detectDragGestures // Cannot proceed without coordinates
+                                                }
+                                                // Get the absolute screen position of where the touch started
+                                                // convert the local touch offset in handle to window coordinates
+                                                val initialTouchScreenPosition = dragHandleCoords.localToWindow(initialTouchOffsetInSurface)
+                                                // Get the absolute screen bounds of the *entire pane*
+                                                // Use the stored paneBoundsInWindow, which is updated by the outer Card's onGloballyPositioned
+                                                // Calculate the offset from the *pane's* top-left to the initial touchpoint
+                                                val offsetRelativeToPaneTopLeft = initialTouchScreenPosition - child.tabBounds!!.topLeft
+                                                onPaneDragStart(
+                                                    child.id,
+                                                    child.title,
+                                                    child.content,
+                                                    offsetRelativeToPaneTopLeft, // Corrected: Offset from pane's top-left to touch
+                                                    initialTouchScreenPosition, // Absolute screen position of touch
+                                                    child.contentBounds ?: Rect(0f, 0f, 50f, 50f) //.size.toIntSize() // Pass the actual size of the pane
+                                                )
+                                            },
+                                            onDrag = { change: PointerInputChange, _: Offset ->
+                                                val dragHandleCoords = dragHandleCoordinates
+                                                if (dragHandleCoords == null) {
+                                                    println("ERROR: dragHandleCoordinates is null on drag for pane ${child.id}")
+                                                    return@detectDragGestures // Cannot proceed without coordinates
+                                                }
+                                                val currentScreenPosition = dragHandleCoords.localToWindow(change.position)
+                                                // Update the current drag position based on pointer changes
+                                                onPaneDrag(currentScreenPosition)
+                                                change.consume() // Consume the event so it doesn't propagate
+                                            },
+                                            onDragEnd = { onPaneDragEnd() },
+                                            onDragCancel = { onPaneDragEnd() }
+                                        )
+                                    },
+                            )
+                        }
+                    }
+                }
+                // Pane Content
+                Box(
+                    modifier = Modifier
+                        .weight(1f)
+                        .fillMaxWidth()
+                        .onGloballyPositioned { coordinates ->
+                            val contentBounds = coordinates.boundsInWindow()
+                            node.children.forEach { it.contentBounds = contentBounds }
+                        }
+                ) {
+                    node.children.getOrNull(node.selectedTabIndex)?.content()
+                }
+            }
+        }
     }
 }
-
-// --- 5. Splitter Composable ---
 
 /**
  * A draggable splitter that allows resizing of adjacent panes.
@@ -614,367 +968,4 @@ private fun Splitter(
                 orientation = if (orientation == SplitOrientation.Vertical) Orientation.Horizontal else Orientation.Vertical
             )
     )
-}
-
-// --- 6. Helper Functions for Layout Tree Manipulation ---
-
-/**
- * Recursively updates the weights of a specific Split node in the layout tree.
- * Returns a new LayoutNode tree with the updated split.
- */
-private fun updateSplitWeights(
-    root: LayoutNode,
-    splitIdToUpdate: String,
-    newWeights: List<Float>
-): LayoutNode {
-    return when (root) {
-        is LayoutNode.Pane -> root
-        is LayoutNode.Split -> {
-            if (root.id == splitIdToUpdate) {
-                root.copy(weights = newWeights)
-            } else {
-                root.copy(children = root.children.map {
-                    updateSplitWeights(it, splitIdToUpdate, newWeights)
-                })
-            }
-        }
-        is LayoutNode.Tabbed -> TODO()
-    }
-}
-
-/**
- * Helper to find a pane's content by ID (for drag visual).
- */
-private fun findPaneContent(root: LayoutNode, paneId: String): Pair<String, @Composable () -> Unit>? {
-    return when (root) {
-        is LayoutNode.Pane -> {
-            if (root.id == paneId) root.title to root.content else null
-        }
-        is LayoutNode.Split -> {
-            root.children.firstNotNullOfOrNull { findPaneContent(it, paneId) }
-        }
-        is LayoutNode.Tabbed -> TODO()
-    }
-}
-
-/**
- * Applies a drop operation to the layout tree.
- * This function orchestrates the removal of the dragged pane from its original location
- * and its insertion into the new location based on the drop target.
- *
- * @param root The current root of the LayoutNode tree.
- * @param draggedPaneId The ID of the pane that was dragged.
- * @param draggedPaneContent The Composable content of the dragged pane.
- * @param draggedPaneTitle The title of the dragged pane.
- * @param dropTarget The calculated DropTarget indicating where the pane should be dropped.
- * @return A new LayoutNode tree after applying the drop operation.
- */
-private fun applyDrop(
-    root: LayoutNode,
-    draggedPaneId: String,
-    draggedPaneContent: @Composable () -> Unit,
-    draggedPaneTitle: String,
-    dropTarget: DropTarget
-): LayoutNode {
-    // If the drop target is NONE, or if the dragged pane is dropped onto itself, do nothing.
-    if (dropTarget.type == DropTargetType.NONE || draggedPaneId == dropTarget.targetNodeId) {
-        return root
-    }
-
-    // 1. Create the new pane object that will be inserted
-    val newPane = LayoutNode.Pane(id = draggedPaneId, title = draggedPaneTitle, content = draggedPaneContent)
-
-    // 2. Remove the dragged pane from its original location
-    // This also handles collapsing empty splits or promoting single children.
-    val (layoutWithoutDragged, _) = removePaneFromLayout(root, draggedPaneId)
-    // If the dragged pane was the root and removed, layoutWithoutDragged might be null.
-    // In that case, the newPane becomes the root if there's a valid drop target.
-    val currentLayout = layoutWithoutDragged ?: LayoutNode.Split(orientation = SplitOrientation.Horizontal, children = emptyList(), weights = emptyList())
-
-    // 3. Insert the dragged pane into the new location based on dropTarget
-    return insertPaneIntoLayout(currentLayout, newPane, dropTarget)
-}
-
-/**
- * Recursively removes a pane from the layout tree.
- * Handles collapsing of splits if they become empty or have only one child after removal.
- *
- * @param node The current node being traversed.
- * @param paneIdToRemove The ID of the pane to remove.
- * @return A Pair where:
- * - first: The new LayoutNode tree (or null if the current node was removed/collapsed).
- * - second: The Pane that was removed (or null if not found in this branch).
- */
-private fun removePaneFromLayout(
-    node: LayoutNode,
-    paneIdToRemove: String
-): Pair<LayoutNode?, LayoutNode.Pane?> {
-    return when (node) {
-        is LayoutNode.Pane -> {
-            if (node.id == paneIdToRemove) {
-                null to node // Found and removed, return null for its place in the tree
-            } else {
-                node to null // Not the pane to remove
-            }
-        }
-        is LayoutNode.Split -> {
-            var removedPane: LayoutNode.Pane? = null
-            val newChildren = mutableListOf<LayoutNode>()
-            val newWeights = mutableListOf<Float>()
-
-            node.children.forEachIndexed { index, child ->
-                val (updatedChild, foundPane) = removePaneFromLayout(child, paneIdToRemove)
-                if (foundPane != null) {
-                    removedPane = foundPane // Pane found in a child branch
-                }
-
-                if (updatedChild != null) {
-                    newChildren.add(updatedChild)
-                    newWeights.add(node.weights[index]) // Keep original weight for remaining children
-                }
-            }
-
-            if (removedPane != null) {
-                // Logic to collapse the split if necessary
-                return when (newChildren.size) {
-                    0 -> null to removedPane // Split is now empty, remove it
-                    1 -> newChildren.first() to removedPane // Split has one child, promote the child
-                    else -> node.copy(children = newChildren, weights = newWeights) to removedPane // Split still valid
-                }
-            } else {
-                node to null // Pane not found in this branch
-            }
-        }
-        is LayoutNode.Tabbed -> TODO()
-    }
-}
-
-/**
- * Recursively inserts a new pane into the layout tree based on the drop target.
- *
- * @param root The current root of the LayoutNode tree.
- * @param newPane The pane to insert.
- * @param dropTarget The calculated DropTarget.
- * @return A new LayoutNode tree with the pane inserted.
- */
-private fun insertPaneIntoLayout(
-    root: LayoutNode,
-    newPane: LayoutNode.Pane,
-    dropTarget: DropTarget
-): LayoutNode {
-    // Handle the case where the root itself is the target for a split operation
-    if (root.id == dropTarget.targetNodeId) {
-        return when (dropTarget.type) {
-            DropTargetType.SPLIT_LEFT -> LayoutNode.Split(
-                orientation = SplitOrientation.Horizontal,
-                children = listOf(newPane, root),
-                weights = listOf(0.5f, 0.5f)
-            )
-            DropTargetType.SPLIT_RIGHT -> LayoutNode.Split(
-                orientation = SplitOrientation.Horizontal,
-                children = listOf(root, newPane),
-                weights = listOf(0.5f, 0.5f)
-            )
-            DropTargetType.SPLIT_TOP -> LayoutNode.Split(
-                orientation = SplitOrientation.Vertical,
-                children = listOf(newPane, root),
-                weights = listOf(0.5f, 0.5f)
-            )
-            DropTargetType.SPLIT_BOTTOM -> LayoutNode.Split(
-                orientation = SplitOrientation.Vertical,
-                children = listOf(root, newPane),
-                weights = listOf(0.5f, 0.5f)
-            )
-            // If the root is the target for reorder, and it's a Pane, this scenario is invalid
-            // or implies a new root split if it was the only pane.
-            // For simplicity, we assume reorder only happens within existing splits.
-            else -> root // Should not happen if dropTarget is valid
-        }
-    }
-
-    return when (root) {
-        is LayoutNode.Pane -> root // Cannot insert into a Pane directly, only split it (handled above)
-        is LayoutNode.Split -> {
-            val newChildren = mutableListOf<LayoutNode>()
-            val newWeights = mutableListOf<Float>()
-
-            root.children.forEachIndexed { index, child ->
-                if (child.id == dropTarget.targetNodeId) {
-                    // This child is the direct target of the drop
-                    when (dropTarget.type) {
-                        DropTargetType.SPLIT_LEFT -> {
-                            newChildren.add(
-                                LayoutNode.Split(
-                                    orientation = SplitOrientation.Horizontal,
-                                    children = listOf(newPane, child),
-                                    weights = listOf(0.5f, 0.5f)
-                                )
-                            )
-                            newWeights.add(root.weights[index])
-                        }
-                        DropTargetType.SPLIT_RIGHT -> {
-                            newChildren.add(
-                                LayoutNode.Split(
-                                    orientation = SplitOrientation.Horizontal,
-                                    children = listOf(child, newPane),
-                                    weights = listOf(0.5f, 0.5f)
-                                )
-                            )
-                            newWeights.add(root.weights[index])
-                        }
-                        DropTargetType.SPLIT_TOP -> {
-                            newChildren.add(
-                                LayoutNode.Split(
-                                    orientation = SplitOrientation.Vertical,
-                                    children = listOf(newPane, child),
-                                    weights = listOf(0.5f, 0.5f)
-                                )
-                            )
-                            newWeights.add(root.weights[index])
-                        }
-                        DropTargetType.SPLIT_BOTTOM -> {
-                            newChildren.add(
-                                LayoutNode.Split(
-                                    orientation = SplitOrientation.Vertical,
-                                    children = listOf(child, newPane),
-                                    weights = listOf(0.5f, 0.5f)
-                                )
-                            )
-                            newWeights.add(root.weights[index])
-                        }
-                        DropTargetType.REORDER_BEFORE -> {
-                            // Insert newPane before the target child in the current split
-                            if (root.id == dropTarget.targetParentId) { // Ensure it's the correct parent split
-                                newChildren.add(newPane)
-                                newWeights.add(0.5f) // Assign a default weight for the new pane
-                                newChildren.add(child)
-                                newWeights.add(root.weights[index])
-                            } else {
-                                newChildren.add(insertPaneIntoLayout(child, newPane, dropTarget))
-                                newWeights.add(root.weights[index])
-                            }
-                        }
-                        DropTargetType.REORDER_AFTER -> {
-                            // Insert newPane after the target child in the current split
-                            if (root.id == dropTarget.targetParentId) { // Ensure it's the correct parent split
-                                newChildren.add(child)
-                                newWeights.add(root.weights[index])
-                                newChildren.add(newPane)
-                                newWeights.add(0.5f) // Assign a default weight for the new pane
-                            } else {
-                                newChildren.add(insertPaneIntoLayout(child, newPane, dropTarget))
-                                newWeights.add(root.weights[index])
-                            }
-                        }
-                        else -> {
-                            newChildren.add(child)
-                            newWeights.add(root.weights[index])
-                        }
-                    }
-                } else {
-                    // Recursively call for children that are not the direct target
-                    newChildren.add(insertPaneIntoLayout(child, newPane, dropTarget))
-                    newWeights.add(root.weights[index])
-                }
-            }
-            // Re-normalize weights after insertion if a new pane was added
-            val finalTotalWeight = newWeights.sum()
-            val finalNormalizedWeights = if (finalTotalWeight > 0) newWeights.map { it / finalTotalWeight } else newWeights
-            root.copy(children = newChildren, weights = finalNormalizedWeights)
-        }
-        is LayoutNode.Tabbed -> TODO()
-    }
-}
-
-/**
- * Calculates the potential drop target based on the current drag position.
- * This function determines which pane is being hovered over and which type of drop operation
- * (split, reorder) is implied by the cursor's position within that pane.
- *
- * @param rootLayout The current root of the LayoutNode tree.
- * @param draggedPaneId The ID of the pane currently being dragged.
- * @param currentDragPosition The absolute screen position of the cursor/touch.
- * @param paneBoundsMap A map of Pane IDs to their absolute screen Rect bounds.
- * @return A DropTarget object indicating the potential drop location, or null if no valid target.
- */
-private fun calculateDropTarget(
-    rootLayout: LayoutNode,
-    draggedPaneId: String,
-    currentDragPosition: Offset,
-    paneBoundsMap: SnapshotStateMap<String, Rect>
-): DropTarget? {
-    // Iterate through all panes in the bounds map
-    for ((paneId, rect) in paneBoundsMap) {
-        // Don't consider the dragged pane itself as a drop target
-        if (paneId == draggedPaneId) continue
-
-        if (rect.contains(currentDragPosition)) {
-            // Cursor is over this pane, now determine the specific drop zone
-            val relativeX = (currentDragPosition.x - rect.left) / rect.width
-            val relativeY = (currentDragPosition.y - rect.top) / rect.height
-
-            // Define drop zone thresholds (e.g., 25% for split, 50% for reorder)
-            val splitThreshold = 0.25f // 25% from edges for splitting
-            val reorderThreshold = 0.5f // Middle 50% for reordering
-
-            // Find the target pane's parent to get its orientation for reordering
-            val targetPaneParent = findParentSplit(rootLayout, paneId)
-
-            return when {
-                // Split Left
-                relativeX < splitThreshold -> DropTarget(rect, DropTargetType.SPLIT_LEFT, paneId)
-                // Split Right
-                relativeX > (1f - splitThreshold) -> DropTarget(rect, DropTargetType.SPLIT_RIGHT, paneId)
-                // Split Top
-                relativeY < splitThreshold -> DropTarget(rect, DropTargetType.SPLIT_TOP, paneId)
-                // Split Bottom
-                relativeY > (1f - splitThreshold) -> DropTarget(rect, DropTargetType.SPLIT_BOTTOM, paneId)
-                // Reorder (middle zone)
-                relativeX >= splitThreshold && relativeX <= (1f - splitThreshold) &&
-                        relativeY >= splitThreshold && relativeY <= (1f - splitThreshold) -> {
-                    if (targetPaneParent != null) {
-                        // Determine if reorder before or after based on orientation
-                        if (targetPaneParent.orientation == SplitOrientation.Horizontal) {
-                            if (relativeX < reorderThreshold) {
-                                DropTarget(rect, DropTargetType.REORDER_BEFORE, paneId, targetPaneParent.id)
-                            } else {
-                                DropTarget(rect, DropTargetType.REORDER_AFTER, paneId, targetPaneParent.id)
-                            }
-                        } else { // Vertical orientation
-                            if (relativeY < reorderThreshold) {
-                                DropTarget(rect, DropTargetType.REORDER_BEFORE, paneId, targetPaneParent.id)
-                            } else {
-                                DropTarget(rect, DropTargetType.REORDER_AFTER, paneId, targetPaneParent.id)
-                            }
-                        }
-                    } else {
-                        // If no parent split, it's a top-level pane, reorder is not directly applicable
-                        // Could imply creating a new root split, but for now, treat as NONE
-                        null
-                    }
-                }
-                else -> null // No specific drop zone
-            }
-        }
-    }
-    return null // No pane is being hovered over
-}
-
-/**
- * Helper function to find the parent Split of a given node.
- * This is useful for reordering operations to ensure the reorder happens within the correct split.
- */
-private fun findParentSplit(root: LayoutNode, targetNodeId: String, parent: LayoutNode.Split? = null): LayoutNode.Split? {
-    return when (root) {
-        is LayoutNode.Pane -> null // A pane has no children to search
-        is LayoutNode.Split -> {
-            if (root.children.any { it.id == targetNodeId }) {
-                root // This split is the parent of the target node
-            } else {
-                root.children.firstNotNullOfOrNull { findParentSplit(it, targetNodeId, root) }
-            }
-        }
-
-        is LayoutNode.Tabbed -> TODO()
-    }
 }
