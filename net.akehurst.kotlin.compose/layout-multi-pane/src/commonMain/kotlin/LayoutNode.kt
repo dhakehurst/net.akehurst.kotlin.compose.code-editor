@@ -1,6 +1,38 @@
 package net.akehurst.kotlin.compose.layout.multipane
 
-import kotlin.collections.get
+import androidx.compose.runtime.Composable
+
+/**
+ * Defines the orientation of a Split.
+ */
+enum class SplitOrientation { Horizontal, Vertical }
+
+/**
+ * Represents a single content pane in the layout.
+ * @param id Unique identifier for the pane.
+ * @param title The title displayed in the pane's header.
+ * @param content The Composable content to display inside the pane.
+ */
+class Pane(
+    val id: String = LayoutNode.generateID(),
+    val title: String,
+    val content: @Composable () -> Unit
+) {
+    var tabBounds: RectInWindow? = null
+    var contentBounds: RectInWindow? = null
+
+    fun asString(indent: String): String = """
+        |${indent}pane ($id, $title) [$tabBounds, $contentBounds]
+    """.trimMargin()
+
+    // content must not be part of the identity: TODO: should title be part of it?
+    override fun hashCode(): Int = id.hashCode()
+    override fun equals(other: Any?): Boolean = when (other) {
+        !is Pane -> false
+        else -> id == other.id
+    }
+    override fun toString(): String = "Pane($id, $title) [$tabBounds, $contentBounds] "
+}
 
 /**
  * Represents a node in the layout tree. It can be either a Pane or a Split.
@@ -197,7 +229,7 @@ sealed class LayoutNode {
 
         override fun asString(indent: String): String = """
             |${indent}tabbed ($id) {
-            |${children.joinToString("\n") { "$indent  pane(${it.id}, '${it.title}')" }}
+            |${children.joinToString("\n") { it.asString("$indent  ") }}
             |${indent}}
         """.trimMargin()
     }
@@ -206,6 +238,7 @@ sealed class LayoutNode {
         internal var next = 0
         fun generateID(): String = "id${next++}"
     }
+
 
     /**
      * Unique ID for each node
@@ -241,3 +274,4 @@ sealed class LayoutNode {
 
 
 }
+

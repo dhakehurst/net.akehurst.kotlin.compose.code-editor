@@ -22,7 +22,7 @@ class test_LayoutNode {
             }
         }
         val newPane = Pane(id = "pane_new", title = "Pane B") {  }
-        val dropTarget = DropTarget.Tabbed(Rect.Zero, DropTarget.Tabbed.Kind.BEFORE, "tabbed_1", "pane_1_1")
+        val dropTarget = DropTarget.Tabbed(RectInWindow.Zero, DropTarget.Tabbed.Kind.BEFORE, "tabbed_1", "pane_1_1")
         // when
         val actual = layout.insertPaneIntoLayout(newPane, dropTarget)
 
@@ -45,7 +45,7 @@ class test_LayoutNode {
             }
         }
         val newPane = Pane(id = "pane_new", title = "Pane B") {  }
-        val dropTarget = DropTarget.Tabbed(Rect.Zero, DropTarget.Tabbed.Kind.AFTER, "tabbed_1", "pane_1_1")
+        val dropTarget = DropTarget.Tabbed(RectInWindow.Zero, DropTarget.Tabbed.Kind.AFTER, "tabbed_1", "pane_1_1")
         // when
         val actual = layout.insertPaneIntoLayout(newPane, dropTarget)
 
@@ -73,7 +73,7 @@ class test_LayoutNode {
             }
         }
         val newPane = Pane(id = "pane_new", title = "Pane C") {  }
-        val dropTarget = DropTarget.Tabbed(Rect.Zero, DropTarget.Tabbed.Kind.BEFORE, "tabbed_1_1", "pane_1_1_1")
+        val dropTarget = DropTarget.Tabbed(RectInWindow.Zero, DropTarget.Tabbed.Kind.BEFORE, "tabbed_1_1", "pane_1_1_1")
         // when
         val actual = layout.insertPaneIntoLayout(newPane, dropTarget)
 
@@ -106,7 +106,7 @@ class test_LayoutNode {
             }
         }
         val newPane = Pane(id = "pane_new", title = "Pane C") {  }
-        val dropTarget = DropTarget.Tabbed(Rect.Zero, DropTarget.Tabbed.Kind.AFTER, "tabbed_1_1", "pane_1_1_1")
+        val dropTarget = DropTarget.Tabbed(RectInWindow.Zero, DropTarget.Tabbed.Kind.AFTER, "tabbed_1_1", "pane_1_1_1")
         // when
         val actual = layout.insertPaneIntoLayout(newPane, dropTarget)
 
@@ -139,7 +139,7 @@ class test_LayoutNode {
             }
         }
         val newPane = Pane(id = "pane_new", title = "Pane C") {  }
-        val dropTarget = DropTarget.Tabbed(Rect.Zero, DropTarget.Tabbed.Kind.BEFORE, "tabbed_1_2", "pane_1_2_1")
+        val dropTarget = DropTarget.Tabbed(RectInWindow.Zero, DropTarget.Tabbed.Kind.BEFORE, "tabbed_1_2", "pane_1_2_1")
         // when
         val actual = layout.insertPaneIntoLayout(newPane, dropTarget)
 
@@ -172,7 +172,7 @@ class test_LayoutNode {
             }
         }
         val newPane = Pane(id = "pane_new", title = "Pane C") {  }
-        val dropTarget = DropTarget.Tabbed(Rect.Zero, DropTarget.Tabbed.Kind.AFTER, "tabbed_1_2", "pane_1_2_1")
+        val dropTarget = DropTarget.Tabbed(RectInWindow.Zero, DropTarget.Tabbed.Kind.AFTER, "tabbed_1_2", "pane_1_2_1")
         // when
         val actual = layout.insertPaneIntoLayout(newPane, dropTarget)
 
@@ -200,7 +200,7 @@ class test_LayoutNode {
             }
         }
         val newPane = Pane(id = "pane_new", title = "Pane B") {  }
-        val dropTarget = DropTarget.Split(Rect.Zero, DropTarget.Split.Kind.TOP, "tabbed_1", "pane_1_1")
+        val dropTarget = DropTarget.Split(RectInWindow.Zero, DropTarget.Split.Kind.TOP, "tabbed_1", "pane_1_1")
         // when
         val actual = layout.insertPaneIntoLayout(newPane, dropTarget)
 
@@ -227,7 +227,7 @@ class test_LayoutNode {
             }
         }
         val newPane = Pane(id = "pane_new", title = "Pane B") {  }
-        val dropTarget = DropTarget.Split(Rect.Zero, DropTarget.Split.Kind.RIGHT, "tabbed_1", "pane_1_1")
+        val dropTarget = DropTarget.Split(RectInWindow.Zero, DropTarget.Split.Kind.RIGHT, "tabbed_1", "pane_1_1")
         // when
         val actual = layout.insertPaneIntoLayout(newPane, dropTarget)
 
@@ -254,7 +254,7 @@ class test_LayoutNode {
             }
         }
         val newPane = Pane(id = "pane_new", title = "Pane B") {  }
-        val dropTarget = DropTarget.Split(Rect.Zero, DropTarget.Split.Kind.BOTTOM, "tabbed_1", "pane_1_1")
+        val dropTarget = DropTarget.Split(RectInWindow.Zero, DropTarget.Split.Kind.BOTTOM, "tabbed_1", "pane_1_1")
         // when
         val actual = layout.insertPaneIntoLayout(newPane, dropTarget)
 
@@ -281,7 +281,7 @@ class test_LayoutNode {
             }
         }
         val newPane = Pane(id = "pane_new", title = "Pane B") {  }
-        val dropTarget = DropTarget.Split(Rect.Zero, DropTarget.Split.Kind.LEFT, "tabbed_1", "pane_1_1")
+        val dropTarget = DropTarget.Split(RectInWindow.Zero, DropTarget.Split.Kind.LEFT, "tabbed_1", "pane_1_1")
         // when
         val actual = layout.insertPaneIntoLayout(newPane, dropTarget)
 
@@ -308,13 +308,13 @@ class test_LayoutNode {
             }
         }
         val newPane = Pane(id = "pane_new", title = "Pane B") {  }
-        val dropTarget = DropTarget.Reorder(Rect.Zero, DropTarget.Reorder.Kind.BEFORE, "tabbed_1", "pane_1_1")
+        val dropTarget = DropTarget.Reorder(RectInWindow.Zero, DropTarget.Reorder.Kind.BEFORE, "tabbed_1", "pane_1_1")
         // when
         try {
             val actual = layout.insertPaneIntoLayout(newPane, dropTarget)
         } catch (t:Throwable) {
             assertTrue (t is IllegalStateException)
-            assertEquals("Cannot Reorder a pane into a tabbed container: DropTarget.Reorder BEFORE tabbed_1 pane_1_1 Rect.fromLTRB(0.0, 0.0, 0.0, 0.0)", t.message)
+            assertEquals("Cannot Reorder a pane into a tabbed container: DropTarget.Reorder BEFORE tabbed_1 pane_1_1 RectInWindow(value=Rect.fromLTRB(0.0, 0.0, 0.0, 0.0))", t.message)
         }
         //then
 
@@ -335,7 +335,7 @@ class test_LayoutNode {
             }
         }
         val newPane = Pane(id = "pane_new", title = "Pane C") {  }
-        val dropTarget = DropTarget.Split(Rect.Zero, DropTarget.Split.Kind.TOP, "split_1", "tabbed_1_1")
+        val dropTarget = DropTarget.Split(RectInWindow.Zero, DropTarget.Split.Kind.TOP, "split_1", "tabbed_1_1")
         // when
         val actual = layout.insertPaneIntoLayout(newPane, dropTarget)
 
@@ -373,7 +373,7 @@ class test_LayoutNode {
             }
         }
         val newPane = Pane(id = "pane_new", title = "Pane C") {  }
-        val dropTarget = DropTarget.Split(Rect.Zero, DropTarget.Split.Kind.RIGHT, "split_1", "tabbed_1_1")
+        val dropTarget = DropTarget.Split(RectInWindow.Zero, DropTarget.Split.Kind.RIGHT, "split_1", "tabbed_1_1")
         // when
         val actual = layout.insertPaneIntoLayout(newPane, dropTarget)
 
@@ -411,7 +411,7 @@ class test_LayoutNode {
             }
         }
         val newPane = Pane(id = "pane_new", title = "Pane C") {  }
-        val dropTarget = DropTarget.Split(Rect.Zero, DropTarget.Split.Kind.BOTTOM, "split_1", "tabbed_1_1")
+        val dropTarget = DropTarget.Split(RectInWindow.Zero, DropTarget.Split.Kind.BOTTOM, "split_1", "tabbed_1_1")
         // when
         val actual = layout.insertPaneIntoLayout(newPane, dropTarget)
 
@@ -449,7 +449,7 @@ class test_LayoutNode {
             }
         }
         val newPane = Pane(id = "pane_new", title = "Pane C") {  }
-        val dropTarget = DropTarget.Split(Rect.Zero, DropTarget.Split.Kind.LEFT, "split_1", "tabbed_1_1")
+        val dropTarget = DropTarget.Split(RectInWindow.Zero, DropTarget.Split.Kind.LEFT, "split_1", "tabbed_1_1")
         // when
         val actual = layout.insertPaneIntoLayout(newPane, dropTarget)
 

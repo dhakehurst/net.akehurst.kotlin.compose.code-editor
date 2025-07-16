@@ -27,6 +27,7 @@ import androidx.compose.foundation.gestures.draggable
 import androidx.compose.foundation.gestures.rememberDraggableState
 import androidx.compose.foundation.layout.*
 import androidx.compose.material3.*
+import androidx.compose.material3.TabRowDefaults.tabIndicatorOffset
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
@@ -39,7 +40,11 @@ import androidx.compose.ui.input.pointer.PointerInputChange
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.LayoutCoordinates
 import androidx.compose.ui.layout.boundsInWindow
+import androidx.compose.ui.layout.layout
 import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.layout.onPlaced
+import androidx.compose.ui.layout.positionInWindow
+import androidx.compose.ui.layout.positionOnScreen
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.IntOffset
@@ -49,26 +54,32 @@ import androidx.compose.ui.zIndex
 import net.akehurst.kotlin.compose.layout.multipane.LayoutNode.Companion.generateID
 import kotlin.math.roundToInt
 
-/**
- * Represents a single content pane in the layout.
- * @param id Unique identifier for the pane.
- * @param title The title displayed in the pane's header.
- * @param content The Composable content to display inside the pane.
- */
-data class Pane(
-    val id: String = generateID(),
-    val title: String,
-    val content: @Composable () -> Unit
-) {
-    var tabBounds: Rect? = null
-    var contentBounds: Rect? = null
+data class RectInWindow(val value: Rect) {
+    companion object {
+        val Zero = RectInWindow(Rect.Zero)
+    }
+
+    val top get() = value.top
+    val right get() = value.left + value.width
+    val bottom get() = value.top + value.height
+    val left get() = value.left
+    val width get() = value.width
+    val height get() = value.height
+    val topLeft get() = value.topLeft
+    fun contains(offsetInWindow: OffsetInWindow) = value.contains(offsetInWindow.value)
 }
 
+data class OffsetInWindow(val value: Offset) {
+    val x get() = value.x
+    val y get() = value.y
+}
 
-/**
- * Defines the orientation of a Split.
- */
-enum class SplitOrientation { Horizontal, Vertical }
+data class OffsetInScreen(val value: Offset) {
+    val x get() = value.x
+    val y get() = value.y
+    fun offsetInWindow(windowTopLeft: OffsetInScreen): OffsetInWindow = OffsetInWindow(value - windowTopLeft.value)
+}
+
 
 /**
  * Represents the state of a drag operation for a pane.
@@ -84,10 +95,10 @@ data class DragState(
     val isDragging: Boolean = false,
     val draggedPaneId: String?,
     val initialTouchOffsetInPane: Offset = Offset.Zero,
-    val currentTouchScreenPosition: Offset = Offset.Zero,
+    val currentTouchScreenPosition: OffsetInScreen = OffsetInScreen(Offset.Zero),
     val paneContent: (@Composable () -> Unit)? = null,
     val paneTitle: String = "",
-    val paneBounds: Rect = Rect.Zero
+    val paneBounds: RectInWindow = RectInWindow(Rect.Zero)
 )
 
 /**
@@ -102,59 +113,62 @@ val LocalDragState: ProvidableCompositionLocal<MutableState<DragState?>> = compo
  */
 sealed class DropTarget {
     data class Tabbed(
-        override val rect: Rect,
+        override val rect: RectInWindow,
         val type: Kind, // Insert new Pane as Tab BEFORE / AFTER otherId
         override val targetNodeId: String, // The ID of the node being dropped into
         val otherId: String? = null // The ID of the pane/tabbed that is before/after
     ) : DropTarget() {
         enum class Kind { BEFORE, AFTER }
 
-        override fun previewRect(offset: Offset): Rect = when (type) {
-            DropTarget.Tabbed.Kind.BEFORE -> Rect(offset.x, offset.y, offset.x + 5, offset.y + rect.height)
-            DropTarget.Tabbed.Kind.AFTER -> Rect(offset.x + rect.width - 5, offset.y, offset.x + rect.width, offset.y + rect.height)
+        override fun previewRect(): RectInWindow = when (type) {
+            DropTarget.Tabbed.Kind.BEFORE -> RectInWindow(Rect(rect.left, rect.top, rect.left + 5, rect.bottom))
+            DropTarget.Tabbed.Kind.AFTER -> RectInWindow(Rect(rect.right - 5, rect.top, rect.right, rect.bottom))
         }
 
         override fun toString(): String = "DropTarget.Tabbed $type $targetNodeId $otherId $rect"
     }
 
     data class Split(
-        override val rect: Rect,
+        override val rect: RectInWindow,
         val type: Kind, // e.g., Split target (Tabbed) placing newPane/Tabbed BEFORE/AFTER otherId
         override val targetNodeId: String, // The ID of the node being dropped into
         val otherId: String? = null // The ID of the pane/tabbed that is before/after
     ) : DropTarget() {
         enum class Kind { LEFT, RIGHT, TOP, BOTTOM }
 
-        override fun previewRect(offset: Offset): Rect = when (type) {
-            Kind.LEFT -> Rect(offset.x, offset.y, offset.x + rect.width / 2, offset.y + rect.height)
-            Kind.RIGHT -> Rect(offset.x + rect.width / 2, offset.y, offset.x + rect.width, offset.y + rect.height)
-            Kind.TOP -> Rect(offset.x, offset.y, offset.x + rect.width, offset.y + rect.height / 2)
-            Kind.BOTTOM -> Rect(offset.x, offset.y + rect.height / 2, offset.x + rect.width, offset.y + rect.height)
+        override fun previewRect(): RectInWindow = when (type) {
+            Kind.LEFT -> RectInWindow(Rect(rect.left, rect.top, rect.left + rect.width / 2, rect.bottom))
+            Kind.RIGHT -> RectInWindow(Rect(rect.left + rect.width / 2, rect.top, rect.right, rect.bottom))
+            Kind.TOP -> RectInWindow(Rect(rect.left, rect.top, rect.right, rect.top + rect.height / 2))
+            Kind.BOTTOM -> RectInWindow(Rect(rect.left, rect.top + rect.height / 2, rect.right, rect.bottom))
         }
 
         override fun toString(): String = "DropTarget.Split $type $targetNodeId $otherId $rect"
     }
 
     data class Reorder(
-        override val rect: Rect,
+        override val rect: RectInWindow,
         val type: Kind, // e.g., Reorder Split content placing target (Tabbed) BEFORE / AFTER otherId
         override val targetNodeId: String, // The ID of the node being dropped into
         val otherId: String? = null // The ID of the pane/tabbed that is before/after
     ) : DropTarget() {
         enum class Kind { BEFORE, AFTER }
 
-        override fun previewRect(offset: Offset): Rect = when (type) {
-            Kind.BEFORE -> Rect(offset.x, offset.y, offset.x + rect.width, offset.y + rect.height / 2)
-            Kind.AFTER -> Rect(offset.x, offset.y + rect.height / 2, offset.x + rect.width, offset.y + rect.height)
+        override fun previewRect(): RectInWindow = when (type) {
+            Kind.BEFORE -> RectInWindow(Rect(rect.left, rect.top, rect.right, rect.top + rect.height / 2))
+            Kind.AFTER -> RectInWindow(Rect(rect.left, rect.top + rect.height / 2, rect.right, rect.bottom))
         }
 
         override fun toString(): String = "DropTarget.Reorder $type $targetNodeId $otherId $rect"
     }
 
-    abstract val rect: Rect
+    abstract val rect: RectInWindow
     abstract val targetNodeId: String?
 
-    abstract fun previewRect(offset: Offset): Rect
+    /**
+     * @param position Window Position for the preview to be displayed
+     */
+    abstract fun previewRect(): RectInWindow
 }
 
 /**
@@ -171,7 +185,6 @@ fun MultiPaneLayout(
     modifier: Modifier = Modifier,
     splitterThickness: Dp = 8.dp
 ) {
-    println("*** Composing ***")
     var state by remember { mutableStateOf(layoutState) }
     // dragState is now the MutableState<DragState> object
     val dragState: MutableState<DragState?> = remember { mutableStateOf(null) }
@@ -200,17 +213,10 @@ fun MultiPaneLayout(
                     val newLayout = state.updateSplitWeights(state.rootLayout, splitId, newWeights)
                     state.setRootLayout(newLayout)
                 },
-                // Pass callback to update pane bounds map
-                onPaneBoundsChanged = { paneId, isTab, rect ->
-                    // if (isTab) println("** onPaneBoundsChanged: $paneId, $isTab, $rect")
-                    //    state.paneBoundsMap[Pair(isTab, paneId)] = rect
-                },
-                // Callbacks for drag events from panes
                 onPaneDragStart = { paneId, title, content, initialTouchOffsetInPane, initialTouchScreenPosition, paneBounds ->
                     dragState.value = DragState( // Corrected: Update the value of the MutableState
                         isDragging = true,
                         draggedPaneId = paneId,
-
                         initialTouchOffsetInPane = initialTouchOffsetInPane,
                         currentTouchScreenPosition = initialTouchScreenPosition,
                         paneContent = content,
@@ -219,14 +225,16 @@ fun MultiPaneLayout(
                     )
                 },
                 onPaneDrag = { currentScreenPosition ->
+                    //val winOffset = OffsetInScreen(rootLayoutCoordinates?.positionOnScreen() ?: Offset.Zero)
+                    val localDragPos = rootLayoutCoordinates?.screenToLocal(currentScreenPosition.value) ?: Offset.Zero
+                    val winDragPos = rootLayoutCoordinates?.localToWindow(localDragPos) ?: Offset.Zero
                     val ds = dragState.value?.copy(currentTouchScreenPosition = currentScreenPosition)
                     dragState.value = ds
                     // Calculate potential drop target based on current drag position and pane bounds
                     val dt = state.calculateDropTarget(
                         rootLayout = state.rootLayout,
                         draggedPaneId = ds!!.draggedPaneId!!,
-                        currentDragPosition = currentScreenPosition,
-                        //    paneBoundsMap = state.paneBoundsMap
+                        currentDragPositionInWindow = OffsetInWindow(winDragPos)
                     )
                     potentialDropTarget = dt
                 },
@@ -251,16 +259,17 @@ fun MultiPaneLayout(
             // Render the floating dragged pane visual
             val ds = dragState.value
             if (null != ds && ds.isDragging && ds.draggedPaneId != null) {
-                val renderPosition = ds.currentTouchScreenPosition - ds.initialTouchOffsetInPane
+                val winOffset = rootLayoutCoordinates?.positionOnScreen() ?: Offset.Zero
+                val renderPositionScreen = ds.currentTouchScreenPosition.value - ds.initialTouchOffsetInPane
                 // Animate the position of the dragged pane visual
                 // The target value is the absolute screen position of the pane's top-left
-                val animatedOffsetInWindow by animateOffsetAsState(
-                    targetValue = renderPosition, // Corrected: Access value
+                val animatedOffsetInScreen by animateOffsetAsState(
+                    targetValue = renderPositionScreen, // Corrected: Access value
                     animationSpec = tween(durationMillis = 50), // Smooth movement
                     label = "draggedPaneOffsetAnimation"
                 )
                 // Convert window coordinates to local coordinates relative to the root Box
-                val localOffset = rootLayoutCoordinates?.windowToLocal(animatedOffsetInWindow) ?: Offset.Zero
+                val localOffset = rootLayoutCoordinates?.screenToLocal(animatedOffsetInScreen) ?: Offset.Zero
                 Surface(
                     modifier = Modifier
                         .offset { IntOffset(localOffset.x.roundToInt(), localOffset.y.roundToInt()) }
@@ -290,7 +299,7 @@ fun MultiPaneLayout(
                         )
                         Spacer(modifier = Modifier.height(4.dp))
                         Text(
-                            text = "Drop ${potentialDropTarget}",
+                            text = "Drop ${potentialDropTarget}  PointerPosInWindow: ${ds.currentTouchScreenPosition.value - winOffset}",
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.7f),
                             modifier = Modifier.padding(horizontal = 8.dp)
@@ -301,14 +310,15 @@ fun MultiPaneLayout(
 
             potentialDropTarget?.let { target ->
                 // Convert target rect bounds from window coordinates to local coordinates of the root Box
-                val offset = rootLayoutCoordinates?.windowToLocal(target.rect.topLeft) ?: target.rect.topLeft
-                val rect = target.previewRect(offset)
+                val offset = rootLayoutCoordinates?.localToWindow(Offset.Zero) ?: Offset.Zero
+                val rectInWindow = target.previewRect()
+                val localRect = rectInWindow.value.translate(offset * -1f)
                 Box(
                     modifier = Modifier
 //                        .offset { IntOffset(localTargetRect.x.roundToInt(), localTargetRect.y.roundToInt()) } // Use localTargetRect
 //                        .size(with(LocalDensity.current) { target.rect.width.toDp() }, with(LocalDensity.current) { target.rect.height.toDp() })
-                        .offset { IntOffset(rect.left.roundToInt(), rect.top.roundToInt()) } // Use localTargetRect
-                        .size(with(LocalDensity.current) { rect.width.toDp() }, with(LocalDensity.current) { rect.height.toDp() })
+                        .offset { IntOffset(localRect.left.roundToInt(), localRect.top.roundToInt()) } // Use localTargetRect
+                        .size(with(LocalDensity.current) { localRect.width.toDp() }, with(LocalDensity.current) { localRect.height.toDp() })
                         .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.2f))
                         .border(2.dp, MaterialTheme.colorScheme.primary)
                         .zIndex(99f) // Below dragged pane, above regular content
@@ -450,7 +460,7 @@ class MultiPaneLayoutState(
 
     fun addPane(targetTabbedId: String, afterId: String, newPane: Pane) {
         val dropTarget = DropTarget.Tabbed(
-            rect = Rect.Zero,
+            rect = RectInWindow(Rect.Zero),
             type = DropTarget.Tabbed.Kind.AFTER,
             targetNodeId = targetTabbedId,
             otherId = afterId
@@ -599,7 +609,7 @@ class MultiPaneLayoutState(
     internal fun calculateDropTarget(
         rootLayout: LayoutNode,
         draggedPaneId: String,
-        currentDragPosition: Offset
+        currentDragPositionInWindow: OffsetInWindow,
     ): DropTarget? {
         // Iterate through all panes
         return rootLayout.firstPaneOfOrNull { split, tabbed, pane ->
@@ -607,8 +617,8 @@ class MultiPaneLayoutState(
             //    null
             //} else {
             when {
-                (true == pane.tabBounds?.contains(currentDragPosition)) -> calculateDropTargetTabbed(tabbed, pane, currentDragPosition)
-                (true == pane.contentBounds?.contains(currentDragPosition)) -> calculateDropTargetSplit(split, tabbed, pane, currentDragPosition)
+                (true == pane.tabBounds?.contains(currentDragPositionInWindow)) -> calculateDropTargetTabbed(tabbed, pane, currentDragPositionInWindow)
+                (true == pane.contentBounds?.contains(currentDragPositionInWindow)) -> calculateDropTargetSplit(split, tabbed, pane, currentDragPositionInWindow)
                 else -> null
             }
             //}
@@ -618,10 +628,10 @@ class MultiPaneLayoutState(
     internal fun calculateDropTargetTabbed(
         tabbed: LayoutNode.Tabbed,
         targetPane: Pane,
-        currentDragPosition: Offset,
+        currentDragPositionInWindow: OffsetInWindow,
     ): DropTarget? {
         val rect = targetPane.tabBounds!!
-        val relativeX = (currentDragPosition.x - rect.left) / rect.width
+        val relativeX = (currentDragPositionInWindow.x - rect.left) / rect.width
         val threshold = 0.5f
         return when {
             relativeX < threshold -> DropTarget.Tabbed(rect, DropTarget.Tabbed.Kind.BEFORE, tabbed.id, targetPane.id)
@@ -634,13 +644,12 @@ class MultiPaneLayoutState(
         split: LayoutNode.Split?,
         tabbed: LayoutNode.Tabbed,
         targetPane: Pane,
-        currentDragPosition: Offset
+        currentDragPositionInWindow: OffsetInWindow
     ): DropTarget? {
-
         val rect = targetPane.contentBounds!!
         // Cursor is over this pane, now determine the specific drop zone
-        val relativeX = (currentDragPosition.x - rect.left) / rect.width
-        val relativeY = (currentDragPosition.y - rect.top) / rect.height
+        val relativeX = (currentDragPositionInWindow.x - rect.left) / rect.width
+        val relativeY = (currentDragPositionInWindow.y - rect.top) / rect.height
         // Define drop zone thresholds (e.g., 25% for split, 50% for reorder)
         val splitThreshold = 0.25f // 25% from edges for splitting
         val reorderThreshold = 0.5f // Middle 50% for reordering
@@ -674,6 +683,7 @@ class MultiPaneLayoutState(
                     }
                 }
             }
+
             else -> null // No specific drop zone
         }
     }
@@ -710,16 +720,15 @@ private fun LayoutNodeRenderer(
     node: LayoutNode,
     splitterThickness: Dp,
     onSplitterDrag: (String, List<Float>) -> Unit,
-    onPaneBoundsChanged: (String, Boolean, Rect) -> Unit, // New callback
-    onPaneDragStart: (String, String, @Composable () -> Unit, Offset, Offset, Rect) -> Unit,
-    onPaneDrag: (Offset) -> Unit,
+    onPaneBoundsChanged: (String, Boolean, Rect) -> Unit = {_,_,_ -> },
+    onPaneDragStart: (String, String, @Composable () -> Unit, Offset, OffsetInScreen, RectInWindow) -> Unit,
+    onPaneDrag: (OffsetInScreen) -> Unit,
     onPaneDragEnd: () -> Unit,
     modifier: Modifier = Modifier
 ) {
 
     // State to hold the LayoutCoordinates of the drag handle Surface
-    var dragHandleCoordinates by remember { mutableStateOf<LayoutCoordinates?>(null) }
-
+    val tabCoordinates = remember { mutableStateMapOf<Int,LayoutCoordinates?>() }
     when (node) {
         is LayoutNode.Split -> {
             // State to hold the size of the current Split container (Row or Column)
@@ -842,17 +851,21 @@ private fun LayoutNodeRenderer(
             Column(
                 modifier = modifier
                     .fillMaxSize()
+                    .padding(0.dp)
+                    .border(width = Dp.Hairline, color = MaterialTheme.colorScheme.onBackground)
             ) {
+                val selectedTabIndex = if (node.selectedTabIndex < node.children.size) node.selectedTabIndex else node.children.size - 1
                 PrimaryScrollableTabRow(
                     edgePadding = 0.dp,
-                    selectedTabIndex = node.selectedTabIndex,
+                    selectedTabIndex = selectedTabIndex,
                     modifier = Modifier
-                        .border(width = Dp.Hairline, color = MaterialTheme.colorScheme.onBackground)
+                        //.border(width = Dp.Hairline, color = Color.Red)
                         .height(30.dp)
+                        .padding(0.dp)
                         .fillMaxWidth()
                 ) {
-                    node.children.forEachIndexed { idx, child ->
-                        key(child) {
+                    node.children.forEachIndexed { idx, pane ->
+                        key(node, pane.id) {
                             Tab(
                                 selected = node.selectedTabIndex == idx,
                                 onClick = {
@@ -860,59 +873,64 @@ private fun LayoutNodeRenderer(
                                 },
                                 content = {
                                     Row {
-                                        Text(text = "${child.title} (${child.id})")
+                                        Text(text = "${pane.title} (${pane.id})")
                                         Icon(
                                             imageVector = state.theme.icons.Close,
                                             contentDescription = null,
                                             modifier = Modifier
-                                                .clickable { state.removePane(child.id) }
+                                                .clickable { state.removePane(pane.id) }
                                                 .size(15.dp)
                                         )
                                     }
                                 },
                                 modifier = Modifier
                                     .border(width = Dp.Hairline, color = MaterialTheme.colorScheme.onBackground)
-                                    .padding(10.dp)
-                                    .onGloballyPositioned { coordinates ->
-                                        dragHandleCoordinates = coordinates // Store coordinates of the drag handle
-                                        child.tabBounds = coordinates.boundsInWindow()
+                                    .height(30.dp)
+                                    .padding(5.dp)
+                                    .onPlaced { layoutCoordinates ->
+                                        tabCoordinates[idx] = layoutCoordinates
+                                        val inWindow = layoutCoordinates.boundsInWindow()
+                                        pane.tabBounds = RectInWindow(inWindow)
                                     }
                                     .pointerInput(node.id) { // Use child.id as key to restart detector if ID changes
                                         detectDragGestures(
                                             onDragStart = { initialTouchOffsetInSurface ->
-                                                val dragHandleCoords = dragHandleCoordinates
-                                                if (dragHandleCoords == null) {
-                                                    println("ERROR: dragHandleCoordinates is null on drag start for pane ${child.id}")
+                                                val tabCoords = tabCoordinates[idx]
+                                                if (tabCoords == null) {
+                                                    println("ERROR: dragHandleCoordinates is null on drag start for pane ${pane.id}")
                                                     return@detectDragGestures // Cannot proceed without coordinates
                                                 }
                                                 // Get the absolute screen position of where the touch started
                                                 // convert the local touch offset in handle to window coordinates
-                                                val initialTouchScreenPosition = dragHandleCoords.localToWindow(initialTouchOffsetInSurface)
+                                                val initialTouchScreenPosition = OffsetInScreen(tabCoords.localToScreen(initialTouchOffsetInSurface))
+                                                val initialTouchWindowPosition = tabCoords.localToWindow(initialTouchOffsetInSurface)
                                                 // Get the absolute screen bounds of the *entire pane*
                                                 // Use the stored paneBoundsInWindow, which is updated by the outer Card's onGloballyPositioned
                                                 // Calculate the offset from the *pane's* top-left to the initial touchpoint
-                                                val offsetRelativeToPaneTopLeft = initialTouchScreenPosition - child.tabBounds!!.topLeft
+                                                val offsetRelativeToPaneTopLeft = initialTouchWindowPosition - pane.tabBounds!!.value.topLeft
                                                 onPaneDragStart(
-                                                    child.id,
-                                                    child.title,
-                                                    child.content,
-                                                    offsetRelativeToPaneTopLeft, // Corrected: Offset from pane's top-left to touch
+                                                    pane.id,
+                                                    pane.title,
+                                                    pane.content,
+                                                    offsetRelativeToPaneTopLeft, // Corrected: Offset from pane's top-left to touch point
                                                     initialTouchScreenPosition, // Absolute screen position of touch
-                                                    child.contentBounds ?: Rect(0f, 0f, 50f, 50f) //.size.toIntSize() // Pass the actual size of the pane
+                                                    pane.contentBounds ?: RectInWindow(Rect.Zero)
                                                 )
                                             },
                                             onDrag = { change: PointerInputChange, _: Offset ->
-                                                val dragHandleCoords = dragHandleCoordinates
-                                                if (dragHandleCoords == null) {
-                                                    println("ERROR: dragHandleCoordinates is null on drag for pane ${child.id}")
+                                                val tabCoords = tabCoordinates[idx]
+                                                if (tabCoords == null) {
+                                                    println("ERROR: dragHandleCoordinates is null on drag for pane ${pane.id}")
                                                     return@detectDragGestures // Cannot proceed without coordinates
                                                 }
-                                                val currentScreenPosition = dragHandleCoords.localToWindow(change.position)
+                                                val currentScreenPosition = OffsetInScreen(tabCoords.localToScreen(change.position))
                                                 // Update the current drag position based on pointer changes
                                                 onPaneDrag(currentScreenPosition)
                                                 change.consume() // Consume the event so it doesn't propagate
                                             },
-                                            onDragEnd = { onPaneDragEnd() },
+                                            onDragEnd = {
+                                                onPaneDragEnd()
+                                            },
                                             onDragCancel = { onPaneDragEnd() }
                                         )
                                     },
@@ -925,8 +943,10 @@ private fun LayoutNodeRenderer(
                     modifier = Modifier
                         .weight(1f)
                         .fillMaxWidth()
+                        .padding(0.dp)
+                        .border(width = Dp.Hairline, color = MaterialTheme.colorScheme.onBackground)
                         .onGloballyPositioned { coordinates ->
-                            val contentBounds = coordinates.boundsInWindow()
+                            val contentBounds = RectInWindow(coordinates.boundsInWindow())
                             node.children.forEach { it.contentBounds = contentBounds }
                         }
                 ) {
