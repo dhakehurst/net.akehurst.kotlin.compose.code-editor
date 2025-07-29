@@ -1,6 +1,7 @@
 package net.akehurst.kotlin.compose.layout.multipane
 
 import androidx.compose.runtime.Composable
+import androidx.compose.ui.layout.Layout
 
 /**
  * A context marker for the layout DSL.
@@ -41,14 +42,14 @@ fun layoutNode(init: LayoutNodeBuilder.() -> Unit): LayoutNode {
  */
 @LayoutDsl
 class LayoutNodeBuilder {
-    private var node: LayoutNode? = null
+    private var node: LayoutNode = LayoutNode.Empty
 
     internal fun build(): LayoutNode {
-        return node ?: error("No layout node defined. Use pane(), split(), or tabbed() to define a root node.")
+        return node
     }
 
     private fun setNode(newNode: LayoutNode) {
-        check(node == null) { "Only one root node can be defined in a LayoutNodeBuilder." }
+        check(node == LayoutNode.Empty) { "Only one root node can be defined in a LayoutNodeBuilder." }
         node = newNode
     }
 

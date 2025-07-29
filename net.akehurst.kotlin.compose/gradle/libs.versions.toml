@@ -10,12 +10,14 @@ credentials = "3.0"
 compose = "1.9.0-alpha03"
 material = "1.7.3"
 
+nak-kotlinx = "2.2.0-SNAPSHOT"
 korlibs = "6.0.1"
 
 
 [libraries]
 korlibs-korio = { module = "com.soywiz:korlibs-io", version.ref = "korlibs" }
 material-icons-core = { module="org.jetbrains.compose.material:material-icons-core", version.ref="material"}
+nak-kotlinx-collections = { module = "net.akehurst.kotlinx:kotlinx-collections", version.ref = "nak-kotlinx" }
 
 [plugins]
 kotlin = { id = "org.jetbrains.kotlin.multiplatform", version.ref = "kotlin" }

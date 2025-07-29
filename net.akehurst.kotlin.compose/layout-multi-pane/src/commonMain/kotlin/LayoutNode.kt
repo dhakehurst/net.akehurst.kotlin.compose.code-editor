@@ -1,6 +1,7 @@
 package net.akehurst.kotlin.compose.layout.multipane
 
 import androidx.compose.runtime.Composable
+import androidx.compose.ui.layout.Layout
 
 /**
  * Defines the orientation of a Split.
@@ -38,6 +39,33 @@ class Pane(
  * Represents a node in the layout tree. It can be either a Pane or a Split.
  */
 sealed class LayoutNode {
+    /**
+     * only the root should ever be empty, otherwise layout nodes are collapsed away
+     */
+    object Empty : LayoutNode() {
+        override val id: String = "<EMPTY>"
+
+        override fun insertPaneIntoLayoutIterate(
+            newPane: Pane,
+            dropTarget: DropTarget
+        ): LayoutNode {
+            return LayoutNode.Tabbed(
+                children = listOf(newPane)
+            )
+        }
+
+        override fun insertPane(
+            newPane: Pane,
+            dropTarget: DropTarget
+        ): LayoutNode {
+            return LayoutNode.Tabbed(
+                children = listOf(newPane)
+            )
+        }
+
+        override fun asString(indent: String): String = "${indent}empty"
+    }
+
     /**
      * Represents a division in the layout, containing multiple child nodes.
      * @param id Unique identifier for the split.
@@ -214,7 +242,7 @@ sealed class LayoutNode {
                     newChildren.add(child)
                 }
             }
-            return copy(children = newChildren)
+            return copy(children = newChildren, selectedTabIndex = newChildren.size-1)
         }
 
         internal fun insertPaneViaNewSplit(newPane: Pane, dropTarget: DropTarget.Split): Split {
@@ -253,6 +281,7 @@ sealed class LayoutNode {
 
     fun <R> firstPaneOfOrNull(parentSplit: Split? = null, transform: (Split?, Tabbed, pane: Pane) -> R?): R? {
         return when (this) {
+            is LayoutNode.Empty -> null
             is Tabbed -> this.children.firstNotNullOfOrNull { transform(parentSplit, this, it) }
             is Split -> this.children.firstNotNullOfOrNull { it.firstPaneOfOrNull(this, transform) }
         }

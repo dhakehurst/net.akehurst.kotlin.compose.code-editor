@@ -91,51 +91,23 @@ class test_MultiPaneLayout {
             title = "Demo MultiPaneLayout",
         )
         {
-            MaterialTheme {
-                Scaffold(
-                    topBar = {
-                        TopAppBar(
-                            title = { Text("Demo MultiPaneLayout") },
-                            actions = {
-                                Button(
-                                    onClick = {
-                                        layoutState.findTabbedOrNull { true }?.let { tgt ->
-                                            val afterId = tgt.children.last().id
-                                            layoutState.addPane(tgt.id, afterId, Pane(title = "New Pane") { Text("New Pane content", style = MaterialTheme.typography.headlineLarge) })
-                                        }
-                                    }
-                                ) {
-                                    Text("Add Pane")
+            MultiPaneLayout(
+                layoutState = layoutState,
+                topRow = {
+                    Row {
+                        Button(
+                            onClick = {
+                                layoutState.findTabbedOrNull { true }?.let { tgt ->
+                                    val afterId = tgt.children.last().id
+                                    layoutState.addPane(tgt.id, afterId, Pane(title = "New Pane") { Text("New Pane content", style = MaterialTheme.typography.headlineLarge) })
                                 }
                             }
-                        )
-                    },
-                    bottomBar = {
-                        BottomAppBar(
-                            modifier = Modifier
-                                .padding(0.dp)
-                                .height(20.dp)
-                                .border(width = 1.dp, color = MaterialTheme.colorScheme.onBackground)
                         ) {
-                            Row(
-                                modifier = Modifier
-                                    .padding(0.dp)
-                            ) {
-
-                            }
+                            Text("Add Pane")
                         }
-                    },
-                ) { innerPadding ->
-                    Column(
-                        modifier = Modifier
-                            .padding(innerPadding)
-                    ) {
-                        MultiPaneLayout(
-                            layoutState = layoutState
-                        )
                     }
                 }
-            }
+            )
         }
     }
 }

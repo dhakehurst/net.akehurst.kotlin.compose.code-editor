@@ -1,0 +1,6 @@
+old:
+
+(field[Type]="Requirement")and((field[Project]="/Pedelec")or(field[Project]="/Agile")or(field[Project]="/Agile/Weather Version 1")or(field[Project]="/Agile/Weather Version 2")or(field[Project]="/AID Process Development")or(field[Project]="/AID Template Project")or(field[Project]="/itemis")or(field[Project]="/itemis/aad")or(field[Project]="/Playground")or(field[Project]="/Playground/Agile_Test1")or(field[Project]="/Proto ECU SW Development")or(field[Project]="/SI Change Package"))and(not (field[Category]="User Requirement")))
+
+new:
+(field[Type]="Requirement")and((field[Project]="/Pedelec")or(field[Project]="/Agile")or(field[Project]="/Agile/Weather Version 1")or(field[Project]="/Agile/Weather Version 2")or(field[Project]="/AID Process Development")or(field[Project]="/AID Template Project")or(field[Project]="/itemis")or(field[Project]="/itemis/aad")or(field[Project]="/Playground")or(field[Project]="/Playground/Agile_Test1")or(field[Project]="/Proto ECU SW Development")or(field[Project]="/SI Change Package"))and(not (field[Category]="User Requirement"))
