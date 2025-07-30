@@ -2,6 +2,7 @@ package net.akehurst.kotlin.compose.layout.multipane
 
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.layout.Layout
+import net.akehurst.kotlinx.utils.UniqueIdentityGenerator
 
 /**
  * A context marker for the layout DSL.
@@ -63,7 +64,7 @@ class LayoutNodeBuilder {
     /**
      * Defines a [LayoutNode.Split].
      */
-    fun split(id: String = LayoutNode.generateID(), orientation: SplitOrientation, init: SplitBuilder.() -> Unit) {
+    fun split(id: String = UniqueIdentityGenerator.generate("split"), orientation: SplitOrientation, init: SplitBuilder.() -> Unit) {
         val builder = SplitBuilder(id, orientation)
         builder.init()
         setNode(builder.build())
@@ -72,7 +73,7 @@ class LayoutNodeBuilder {
     /**
      * Defines a [LayoutNode.Tabbed].
      */
-    fun tabbed(id: String = LayoutNode.generateID(), init: TabbedBuilder.() -> Unit) {
+    fun tabbed(id: String = UniqueIdentityGenerator.generate("tabbed"), init: TabbedBuilder.() -> Unit) {
         val builder = TabbedBuilder(id)
         builder.init()
         setNode(builder.build())
@@ -90,25 +91,14 @@ class SplitBuilder(
     private val children = mutableListOf<LayoutNode>()
     private val weights = mutableListOf<Float>()
 
-//    /**
-//     * Adds a child node to the split with a specific weight.
-//     */
-//    fun child(weight: Float, init: LayoutNodeBuilder.() -> Unit) {
-//        require(weight > 0f) { "Child weight must be positive." }
-//        val builder = LayoutNodeBuilder()
-//        builder.init()
-//        children.add(builder.build())
-//        weights.add(weight)
-//    }
-
-    fun split(weight: Float,id: String = LayoutNode.generateID(), orientation: SplitOrientation, init: SplitBuilder.() -> Unit) {
+    fun split(weight: Float,id: String = UniqueIdentityGenerator.generate("split"), orientation: SplitOrientation, init: SplitBuilder.() -> Unit) {
         val builder = SplitBuilder(id, orientation)
         builder.init()
         children.add(builder.build())
         weights.add(weight)
     }
 
-    fun tabbed(weight: Float,id: String = LayoutNode.generateID(), init: TabbedBuilder.() -> Unit) {
+    fun tabbed(weight: Float,id: String = UniqueIdentityGenerator.generate("tabbed"), init: TabbedBuilder.() -> Unit) {
         val builder = TabbedBuilder(id)
         builder.init()
         children.add(builder.build())
@@ -118,13 +108,15 @@ class SplitBuilder(
     /**
      * convenience: adds a single pane inside a tabbed layout
      */
-    fun pane(weight: Float, id: String = LayoutNode.generateID(), title: String, content: @Composable () -> Unit) {
+    fun pane(weight: Float, id: String = UniqueIdentityGenerator.generate("pane"), title: String, content: @Composable () -> Unit) {
         children.add(LayoutNode.Tabbed(children = listOf(Pane(id, title, content))))
         weights.add(weight)
     }
 
     internal fun build(): LayoutNode.Split {
-        return LayoutNode.Split(nodeId, orientation, children, weights)
+        val totalWeight = weights.sum()
+        val normalizedWeights = weights.map { it / totalWeight }
+        return LayoutNode.Split(nodeId, orientation, children, normalizedWeights)
     }
 }
 
@@ -138,7 +130,7 @@ class TabbedBuilder(private val nodeId: String) {
     /**
      * Adds a [LayoutNode.Pane] as a tab.
      */
-    fun pane(id: String = LayoutNode.generateID(), title: String, content: @Composable () -> Unit) {
+    fun pane(id: String = UniqueIdentityGenerator.generate("pane"), title: String, content: @Composable () -> Unit) {
         children.add(Pane(id, title, content))
     }
 

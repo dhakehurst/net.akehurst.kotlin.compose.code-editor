@@ -23,7 +23,7 @@ class test_MultiPaneLayout {
         // initial layout
         val lay = layoutNode {
             split(orientation = SplitOrientation.Horizontal) {
-                split(1f, orientation = SplitOrientation.Vertical) {
+                split(0.5f, orientation = SplitOrientation.Vertical) {
                     pane(1f, title = "Pane A") {
                         Text("Pane A content", style = MaterialTheme.typography.headlineLarge)
                     }
@@ -32,7 +32,7 @@ class test_MultiPaneLayout {
                         Text("Pane B content", style = MaterialTheme.typography.headlineLarge)
                     }
                 }
-                tabbed(1f) {
+                tabbed(0.5f) {
                     pane(title = "Tab 1") {
                         Text("Tab 1 content", style = MaterialTheme.typography.headlineLarge)
                     }
@@ -58,7 +58,7 @@ class test_MultiPaneLayout {
         val layoutState = MultiPaneLayoutState(
             lay,
             onLayoutChanged = {
-                println(it.asString(""))
+                //println(it.asString(""))
             }
         )
 

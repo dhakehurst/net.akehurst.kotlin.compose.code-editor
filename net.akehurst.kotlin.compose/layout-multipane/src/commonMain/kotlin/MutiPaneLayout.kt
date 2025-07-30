@@ -27,7 +27,6 @@ import androidx.compose.foundation.gestures.draggable
 import androidx.compose.foundation.gestures.rememberDraggableState
 import androidx.compose.foundation.layout.*
 import androidx.compose.material3.*
-import androidx.compose.material3.TabRowDefaults.tabIndicatorOffset
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
@@ -38,20 +37,13 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.graphics.vector.path
 import androidx.compose.ui.input.pointer.PointerInputChange
 import androidx.compose.ui.input.pointer.pointerInput
-import androidx.compose.ui.layout.LayoutCoordinates
-import androidx.compose.ui.layout.boundsInWindow
-import androidx.compose.ui.layout.layout
-import androidx.compose.ui.layout.onGloballyPositioned
-import androidx.compose.ui.layout.onPlaced
-import androidx.compose.ui.layout.positionInWindow
-import androidx.compose.ui.layout.positionOnScreen
+import androidx.compose.ui.layout.*
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.zIndex
-import net.akehurst.kotlin.compose.layout.multipane.LayoutNode.Companion.generateID
 import kotlin.math.roundToInt
 
 data class RectInWindow(val value: Rect) {
@@ -390,14 +382,14 @@ object MultiPaneLayoutThemeDefault : MultiPaneLayoutTheme {
 
 @Stable
 class MultiPaneLayoutState(
-    initialLayout: LayoutNode,
+    initialLayout: LayoutNode = LayoutNode.Empty,
     val theme: MultiPaneLayoutTheme = MultiPaneLayoutThemeDefault,
-    val onLayoutChanged: (LayoutNode) -> Unit = {}
+    var onLayoutChanged: (LayoutNode) -> Unit = {}
 ) {
     private var _rootLayout by mutableStateOf(initialLayout)
     val rootLayout: LayoutNode get() = _rootLayout
 
-    internal fun setRootLayout(value: LayoutNode) {
+    fun setRootLayout(value: LayoutNode) {
         _rootLayout = value
         // update paneBoundsMap to only contain the ids in layout
 //        val currentPaneIds = getAllLayoutAndPaneIds()
@@ -764,7 +756,7 @@ private fun LayoutNodeRenderer(
                         }
                 ) {
                     node.children.forEachIndexed { index, child ->
-                        key(child) {
+                        //key(child) {
                             LayoutNodeRenderer(
                                 state = state,
                                 node = child,
@@ -807,7 +799,7 @@ private fun LayoutNodeRenderer(
                                     }
                                 )
                             }
-                        }
+                       // }
                     }
                 }
             } else { // Vertical Split
@@ -819,7 +811,7 @@ private fun LayoutNodeRenderer(
                         }
                 ) {
                     node.children.forEachIndexed { index, child ->
-                        key(child) {
+                       // key(child) {
                             LayoutNodeRenderer(
                                 state = state,
                                 node = child,
@@ -858,7 +850,7 @@ private fun LayoutNodeRenderer(
                                     }
                                 )
                             }
-                        }
+                       // }
                     }
                 }
             }

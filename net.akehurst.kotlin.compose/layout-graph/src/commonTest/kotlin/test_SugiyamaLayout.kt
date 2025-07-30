@@ -13,6 +13,7 @@ class test_SugiyamaLayout {
         val actual = sl.layoutGraph(listOf(1,2),listOf(1 to 2))
 
         val expected = SugiyamaLayoutData(
+            5.0,5.0,
             mapOf(
                 1 to Pair(0.0,0.0),
                 2 to Pair(0.0,130.0)

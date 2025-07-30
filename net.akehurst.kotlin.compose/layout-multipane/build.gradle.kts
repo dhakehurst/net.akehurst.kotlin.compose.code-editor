@@ -9,6 +9,8 @@ kotlin {
     sourceSets {
         commonMain {
             dependencies {
+                implementation(libs.nak.kotlinx.utils)
+
                 implementation(compose.ui)
                 implementation(compose.foundation)
                 implementation(compose.material3)

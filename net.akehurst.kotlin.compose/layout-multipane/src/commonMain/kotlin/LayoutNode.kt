@@ -2,6 +2,7 @@ package net.akehurst.kotlin.compose.layout.multipane
 
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.layout.Layout
+import net.akehurst.kotlinx.utils.UniqueIdentityGenerator
 
 /**
  * Defines the orientation of a Split.
@@ -15,7 +16,7 @@ enum class SplitOrientation { Horizontal, Vertical }
  * @param content The Composable content to display inside the pane.
  */
 class Pane(
-    val id: String = LayoutNode.generateID(),
+    val id: String = UniqueIdentityGenerator.generate("pane"),
     val title: String,
     val content: @Composable () -> Unit
 ) {
@@ -74,7 +75,7 @@ sealed class LayoutNode {
      * @param weights The proportional sizes of the children. Must match the size of `children`.
      */
     data class Split(
-        override val id: String = generateID(),
+        override val id: String = UniqueIdentityGenerator.generate("split"),
         val orientation: SplitOrientation,
         val children: List<LayoutNode>,
         val weights: List<Float>
@@ -210,7 +211,7 @@ sealed class LayoutNode {
     }
 
     data class Tabbed(
-        override val id: String = generateID(),
+        override val id: String = UniqueIdentityGenerator.generate("tabbed"),
         val children: List<Pane>,
         val selectedTabIndex: Int = 0
     ) : LayoutNode() {
@@ -262,12 +263,6 @@ sealed class LayoutNode {
         """.trimMargin()
     }
 
-    companion object {
-        internal var next = 0
-        fun generateID(): String = "id${next++}"
-    }
-
-
     /**
      * Unique ID for each node
      */
@@ -278,6 +273,14 @@ sealed class LayoutNode {
     abstract fun insertPane(newPane: Pane, dropTarget: DropTarget): LayoutNode
 
     abstract fun asString(indent: String=""): String
+
+    fun forEachPane(action: (Pane) -> Unit) {
+        when (this) {
+            is Empty -> {}
+            is Tabbed -> children.forEach(action)
+            is Split -> children.forEach { it.forEachPane(action) }
+        }
+    }
 
     fun <R> firstPaneOfOrNull(parentSplit: Split? = null, transform: (Split?, Tabbed, pane: Pane) -> R?): R? {
         return when (this) {

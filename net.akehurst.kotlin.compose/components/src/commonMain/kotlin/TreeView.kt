@@ -28,6 +28,17 @@ data class TreeViewNode(
     var children by mutableStateOf<List<TreeViewNode>>(emptyList())
 }
 
+@Stable
+class TreeViewState {
+
+    var items by mutableStateOf(listOf(TreeViewNode("<no content>")))
+    val lazyListState = LazyListState()
+
+    fun setNewItems(newItems: List<TreeViewNode>) {
+        items = newItems
+    }
+}
+
 private fun toggleExpanded(expandedItems: MutableList<TreeViewNode>, node: TreeViewNode) {
     if (expandedItems.contains(node)) {
         expandedItems.remove(node)
@@ -132,16 +143,5 @@ fun LazyListScope.node(
             expanded,
             collapsed
         )
-    }
-}
-
-@Stable
-class TreeViewState {
-
-    var items by mutableStateOf(listOf(TreeViewNode("<no content>")))
-    val lazyListState = LazyListState()
-
-    fun setNewItems(newItems: List<TreeViewNode>) {
-        items = newItems
     }
 }
