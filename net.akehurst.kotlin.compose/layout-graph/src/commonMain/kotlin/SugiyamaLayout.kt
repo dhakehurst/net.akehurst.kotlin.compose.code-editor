@@ -22,6 +22,8 @@ enum class EdgeRouting {
     RECTILINEAR
 }
 
+private enum class ConnectionSide { TOP, BOTTOM, LEFT, RIGHT }
+
 /**
  * Implements the Sugiyama-style layered graph layout algorithm.
  *
@@ -39,8 +41,8 @@ enum class EdgeRouting {
 class SugiyamaLayout<NT : Any>(
     private val nodeWidth: (NT) -> Double = { 100.0 },
     private val nodeHeight: (NT) -> Double = { 50.0 },
-    private val layerSpacing: Double = 80.0,
-    private val nodeSpacing: Double = 50.0,
+    private val layerSpacing: Double = 100.0,
+    private val nodeSpacing: Double = 100.0,
     private val edgeRouting: EdgeRouting = EdgeRouting.DIRECT
 ) {
 
@@ -60,6 +62,11 @@ class SugiyamaLayout<NT : Any>(
     // Internal representation of an edge in the layered graph
     private data class SEdge<NT : Any>(val from: SNode<NT>, val to: SNode<NT>)
 
+    private data class ConnectionPointRequest<NT : Any>(
+        val edge: Pair<NT, NT>,
+        val externalPoint: Pair<Double, Double>,
+        val side: ConnectionSide
+    )
     /**
      * Computes the layout for the given graph.
      */
@@ -325,26 +332,114 @@ class SugiyamaLayout<NT : Any>(
         }
         finalPath.add(pathPoints.last())
 
-        // Clean up the path to remove redundant points
+        // Clean up the path to remove redundant points that create unnecessary bends
+        val distinctPath = finalPath.distinct()
+        if (distinctPath.size <= 2) return distinctPath
+
         val cleanedPath = mutableListOf<Pair<Double, Double>>()
-        if (finalPath.isNotEmpty()) {
-            cleanedPath.add(finalPath.first())
-            for (j in 1 until finalPath.size - 1) {
-                val pPrev = cleanedPath.last()
-                val pCurr = finalPath[j]
-                val pNext = finalPath[j + 1]
-                // Remove point if it's collinear with its neighbors
-                val isCollinear = (pPrev.first == pCurr.first && pCurr.first == pNext.first) ||
-                        (pPrev.second == pCurr.second && pCurr.second == pNext.second)
-                if (!isCollinear) {
-                    cleanedPath.add(pCurr)
+        cleanedPath.add(distinctPath.first())
+
+        for (i in 1 until distinctPath.size) {
+            val currentPoint = distinctPath[i]
+            if (cleanedPath.size > 1) {
+                val lastCleanedPoint = cleanedPath.last()
+                val secondLastCleanedPoint = cleanedPath[cleanedPath.size - 2]
+                val isCollinear =
+                    (secondLastCleanedPoint.first == lastCleanedPoint.first && lastCleanedPoint.first == currentPoint.first) ||
+                            (secondLastCleanedPoint.second == lastCleanedPoint.second && lastCleanedPoint.second == currentPoint.second)
+
+                if (isCollinear) {
+                    cleanedPath[cleanedPath.size - 1] = currentPoint
+                } else {
+                    cleanedPath.add(currentPoint)
                 }
+            } else {
+                cleanedPath.add(currentPoint)
             }
-            cleanedPath.add(finalPath.last())
         }
-        return cleanedPath.distinct()
+        return cleanedPath
     }
 
+    private fun getSide(nodePos: Pair<Double, Double>, nodeSize: Pair<Double, Double>, externalPoint: Pair<Double, Double>): ConnectionSide {
+        val (nodeX, nodeY) = nodePos
+        val (nodeWidth, nodeHeight) = nodeSize
+        val (extX, extY) = externalPoint
+
+        val nodeLeft = nodeX
+        val nodeRight = nodeX + nodeWidth
+        val nodeTop = nodeY
+        val nodeBottom = nodeY + nodeHeight
+
+        // Determine connection side based on the external point's position relative to the node's bounding box
+        if (extY >= nodeBottom) {
+            return ConnectionSide.BOTTOM
+        } else if (extY <= nodeTop) {
+            return ConnectionSide.TOP
+        } else if (extX >= nodeRight) {
+            return ConnectionSide.RIGHT
+        } else if (extX <= nodeLeft) {
+            return ConnectionSide.LEFT
+        } else {
+            // Fallback for when the external point is within the node's x and y range.
+            val dTop = abs(extY - nodeTop)
+            val dBottom = abs(extY - nodeBottom)
+            val dLeft = abs(extX - nodeLeft)
+            val dRight = abs(extX - nodeRight)
+
+            when (minOf(dTop, dBottom, dLeft, dRight)) {
+                dTop -> return ConnectionSide.TOP
+                dBottom -> return ConnectionSide.BOTTOM
+                dLeft -> return ConnectionSide.LEFT
+                else -> return ConnectionSide.RIGHT
+            }
+        }
+    }
+
+
+    private fun distributePointsOnSide(
+        nodePos: Pair<Double, Double>,
+        nodeSize: Pair<Double, Double>,
+        side: ConnectionSide,
+        requests: List<ConnectionPointRequest<NT>>,
+        inset: Double = 5.0
+    ): Map<ConnectionPointRequest<NT>, Pair<Double, Double>> {
+        val (nodeX, nodeY) = nodePos
+        val (nodeWidth, nodeHeight) = nodeSize
+        val numPoints = requests.size
+        val points = mutableMapOf<ConnectionPointRequest<NT>, Pair<Double, Double>>()
+
+        when (side) {
+            ConnectionSide.TOP, ConnectionSide.BOTTOM -> {
+                val y = if (side == ConnectionSide.TOP) nodeY else nodeY + nodeHeight
+                val sortedRequests = requests.sortedBy { it.externalPoint.first }
+                val availableWidth = nodeWidth - 2 * inset
+                if (availableWidth <= 0) { // handle very narrow nodes
+                    sortedRequests.forEach { request -> points[request] = Pair(nodeX + nodeWidth/2, y) }
+                    return points
+                }
+                val segmentLength = availableWidth / (numPoints + 1)
+                sortedRequests.forEachIndexed { i, request ->
+                    val x = nodeX + inset + (i + 1) * segmentLength
+                    points[request] = Pair(x, y)
+                }
+            }
+            ConnectionSide.LEFT, ConnectionSide.RIGHT -> {
+                val x = if (side == ConnectionSide.LEFT) nodeX else nodeX + nodeWidth
+                val sortedRequests = requests.sortedBy { it.externalPoint.second }
+                val availableHeight = nodeHeight - 2 * inset
+                if (availableHeight <= 0) { // handle very short nodes
+                    sortedRequests.forEach { request -> points[request] = Pair(x, nodeY + nodeHeight/2) }
+                    return points
+                }
+                val segmentLength = availableHeight / (numPoints + 1)
+                sortedRequests.forEachIndexed { i, request ->
+                    val y = nodeY + inset + (i + 1) * segmentLength
+                    points[request] = Pair(x, y)
+                }
+            }
+        }
+        return points
+    }
 
     /**
      * Step 5: Assigns final coordinates to nodes and determines edge routes.
@@ -395,9 +490,8 @@ class SugiyamaLayout<NT : Any>(
 
         val nodeToSNode = layeredNodes.flatten().filterNot { it.isDummy }.associateBy { it.originalNode }
         val sAdj = layeredEdges.groupBy { it.from }
-        val acyclicEdgeRoutes = mutableMapOf<Pair<NT, NT>, List<Pair<Double, Double>>>()
 
-        edges.forEach { edge ->
+        val unadjustedAcyclicEdgeRoutes = edges.associateWith { edge ->
             val startSNode = nodeToSNode.getValue(edge.first)
             val endSNode = nodeToSNode.getValue(edge.second)
             val q = ArrayDeque<List<SNode<NT>>>()
@@ -420,37 +514,89 @@ class SugiyamaLayout<NT : Any>(
                     }
                 }
             }
-            val pathPoints = pathSNodes.map { sNodePositions.getValue(it) } // These are centers.
+            pathSNodes.map { sNodePositions.getValue(it) } // These are centers.
+        }
 
-            val unadjustedPath = if (edgeRouting == EdgeRouting.RECTILINEAR && pathPoints.size > 1) {
-                createRectilinearPath(pathPoints, nodePositions)
-            } else {
-                pathPoints
+        val acyclicEdgeRoutes = if (edgeRouting == EdgeRouting.RECTILINEAR) {
+            val sourceConnectionRequests = mutableMapOf<NT, MutableList<ConnectionPointRequest<NT>>>()
+            val targetConnectionRequests = mutableMapOf<NT, MutableList<ConnectionPointRequest<NT>>>()
+            val rectilinearPaths = unadjustedAcyclicEdgeRoutes.mapValues { createRectilinearPath(it.value, nodePositions) }
+
+            rectilinearPaths.forEach { (edge, path) ->
+                if (path.size > 1) {
+                    val sourceNode = edge.first
+                    val targetNode = edge.second
+                    val sourcePos = nodePositions.getValue(sourceNode)
+                    val sourceSize = Pair(nodeWidth(sourceNode), nodeHeight(sourceNode))
+                    val sourceExternalPoint = path[1]
+                    val sourceSide = getSide(sourcePos, sourceSize, sourceExternalPoint)
+                    sourceConnectionRequests.getOrPut(sourceNode) { mutableListOf() }.add(ConnectionPointRequest(edge, sourceExternalPoint, sourceSide))
+                    val targetPos = nodePositions.getValue(targetNode)
+                    val targetSize = Pair(nodeWidth(targetNode), nodeHeight(targetNode))
+                    val targetExternalPoint = path[path.size - 2]
+                    val targetSide = getSide(targetPos, targetSize, targetExternalPoint)
+                    targetConnectionRequests.getOrPut(targetNode) { mutableListOf() }.add(ConnectionPointRequest(edge, targetExternalPoint, targetSide))
+                }
             }
 
-            var finalPathPoints: List<Pair<Double, Double>> = unadjustedPath
-
-            if (unadjustedPath.size > 1) {
-                val modifiedPath = unadjustedPath.toMutableList()
-
-                // Modify start point
-                val sourceNode = edge.first
-                val sourceWidth = nodeWidth(sourceNode)
-                val sourceHeight = nodeHeight(sourceNode)
-                val sourceCenter = pathPoints.first()
-                val nextPoint = unadjustedPath[1]
-                modifiedPath[0] = computeNodeBorderIntersection(sourceCenter, Pair(sourceWidth, sourceHeight), nextPoint)
-
-                // Modify end point
-                val targetNode = edge.second
-                val targetWidth = nodeWidth(targetNode)
-                val targetHeight = nodeHeight(targetNode)
-                val targetCenter = pathPoints.last()
-                val prevPoint = unadjustedPath[unadjustedPath.size - 2]
-                modifiedPath[modifiedPath.size - 1] = computeNodeBorderIntersection(targetCenter, Pair(targetWidth, targetHeight), prevPoint)
-                finalPathPoints = modifiedPath
+            val connectionPoints = mutableMapOf<Pair<Pair<NT, NT>, Boolean>, Pair<Double, Double>>() // (edge, isSource) -> point
+            sourceConnectionRequests.forEach { (node, requests) ->
+                val nodePos = nodePositions.getValue(node)
+                val nodeSize = Pair(nodeWidth(node), nodeHeight(node))
+                requests.groupBy { it.side }.forEach { (side, sideRequests) ->
+                    distributePointsOnSide(nodePos, nodeSize, side, sideRequests).forEach { (req, point) -> connectionPoints[Pair(req.edge, true)] = point }
+                }
             }
-            acyclicEdgeRoutes[edge] = finalPathPoints
+            targetConnectionRequests.forEach { (node, requests) ->
+                val nodePos = nodePositions.getValue(node)
+                val nodeSize = Pair(nodeWidth(node), nodeHeight(node))
+                requests.groupBy { it.side }.forEach { (side, sideRequests) ->
+                    distributePointsOnSide(nodePos, nodeSize, side, sideRequests).forEach { (req, point) -> connectionPoints[Pair(req.edge, false)] = point }
+                }
+            }
+            rectilinearPaths.mapValues { (edge, path) ->
+                if (path.size > 1) {
+                    val newStartPoint = connectionPoints[Pair(edge, true)]!!
+                    val newEndPoint = connectionPoints[Pair(edge, false)]!!
+                    val sourceSide = sourceConnectionRequests.getValue(edge.first).first{it.edge==edge}.side
+                    val targetSide = targetConnectionRequests.getValue(edge.second).first{it.edge==edge}.side
+
+                    val finalPath = mutableListOf(newStartPoint)
+                    val nextPoint = path[1]
+                    val startBend = if (sourceSide == ConnectionSide.LEFT || sourceSide == ConnectionSide.RIGHT) Pair(nextPoint.first, newStartPoint.second) else Pair(newStartPoint.first, nextPoint.second)
+                    if (startBend != newStartPoint && startBend != nextPoint) finalPath.add(startBend)
+
+                    finalPath.addAll(path.subList(1, path.size - 1))
+
+                    val prevPoint = path[path.size - 2]
+                    val endBend = if (targetSide == ConnectionSide.LEFT || targetSide == ConnectionSide.RIGHT) Pair(prevPoint.first, newEndPoint.second) else Pair(newEndPoint.first, prevPoint.second)
+                    if (endBend != newEndPoint && endBend != finalPath.last()) finalPath.add(endBend)
+
+                    finalPath.add(newEndPoint)
+                    finalPath.distinct()
+                } else path
+            }
+        } else { // DIRECT
+            unadjustedAcyclicEdgeRoutes.mapValues { (edge, path) ->
+                if (path.size > 1) {
+                    val modifiedPath = path.toMutableList()
+                    val sourceNode = edge.first
+                    val targetNode = edge.second
+                    // Modify start point
+                    val sourceWidth = nodeWidth(sourceNode)
+                    val sourceHeight = nodeHeight(sourceNode)
+                    val sourceCenter = path.first()
+                    val nextPoint = path[1]
+                    modifiedPath[0] = computeNodeBorderIntersection(sourceCenter, Pair(sourceWidth, sourceHeight), nextPoint)
+                    // Modify end point
+                    val targetWidth = nodeWidth(targetNode)
+                    val targetHeight = nodeHeight(targetNode)
+                    val targetCenter = path.last()
+                    val prevPoint = path[path.size - 2]
+                    modifiedPath[modifiedPath.size - 1] = computeNodeBorderIntersection(targetCenter, Pair(targetWidth, targetHeight), prevPoint)
+                    modifiedPath
+                } else path
+            }
         }
 
         val finalEdgeRoutes = mutableMapOf<Pair<NT, NT>, List<Pair<Double, Double>>>()

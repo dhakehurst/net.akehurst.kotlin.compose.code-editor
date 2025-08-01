@@ -16,11 +16,11 @@ import kotlin.test.Test
 
 class test_MultiPaneLayout {
 
-    fun GraphLayoutGraph.addNode(id:String, width:Int, height:Int) = this.addNode(id) {
+    fun GraphLayoutGraph.addNode(id:String, color: Color,width:Int, height:Int) = this.addNode(id) {
         Column(
             modifier = Modifier
                 .size(width.dp, height.dp)
-                .background(Color.Blue)
+                .background(color)
         ) {
             Text(id)
         }
@@ -31,11 +31,12 @@ class test_MultiPaneLayout {
     fun main() {
         // initial layout
         val graph = GraphLayoutGraph("init")
-        graph.addNode("A",50,50)
-        graph.addNode("B",150, 150)
-        graph.addNode("C",50, 50)
+        graph.addNode("A",Color.Red,50,50)
+        graph.addNode("B",Color.Blue,150, 150)
+        graph.addNode("C",Color.Yellow,50, 50)
 
-        graph.addEdge("e1", "A", "B")
+        graph.addEdge("e1", "A", "C")
+        graph.addEdge("e2", "B", "C")
 
         //println(graph.asString(""))
         val layoutState = GraphLayoutState(graph)
