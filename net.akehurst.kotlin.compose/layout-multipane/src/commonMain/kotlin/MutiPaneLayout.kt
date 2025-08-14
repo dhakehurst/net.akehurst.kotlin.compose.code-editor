@@ -468,10 +468,18 @@ class MultiPaneLayoutState(
         setRootLayout(layout)
     }
 
+    /**
+     * adds the new Pane after the first found tabbed pane,
+     * or as a tabbed pane if layout is currently empty
+     */
     fun addPane(newPane: Pane) {
-        this.findTabbedOrNull { true }?.let { tgt ->
-            val afterId = tgt.children.last().id
-            this.addPane(tgt.id, afterId, newPane)
+        if (rootLayout is LayoutNode.Empty) {
+            setRootLayout(LayoutNode.Tabbed(children=listOf(newPane)))
+        } else {
+            this.findTabbedOrNull { true }?.let { tgt ->
+                val afterId = tgt.children.last().id
+                this.addPane(tgt.id, afterId, newPane)
+            }
         }
     }
 

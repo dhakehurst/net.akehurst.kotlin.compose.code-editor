@@ -32,11 +32,11 @@ class test_MultiPaneLayout {
         // initial layout
         val graph = GraphLayoutGraph("init")
         graph.addNode("A",Color.Red,50,50)
-        graph.addNode("B",Color.Blue,150, 150)
+       // graph.addNode("B",Color.Blue,150, 150)
         graph.addNode("C",Color.Yellow,50, 50)
 
         graph.addEdge("e1", "A", "C")
-        graph.addEdge("e2", "B", "C")
+       // graph.addEdge("e2", "B", "C")
 
         //println(graph.asString(""))
         val layoutState = GraphLayoutState(graph)
