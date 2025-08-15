@@ -2,6 +2,8 @@ package net.akehurst.kotlin.compose.components.table
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.width
 import androidx.compose.material.Text
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
@@ -20,24 +22,39 @@ class test_TableView {
             val state = remember { TableState() }
             TableView(
                 state,
-                modifier = Modifier
+                tableModifier = Modifier
+                    .fillMaxWidth()
                     .border(width = 1.dp, color = Color.Black)
-                    .background(Color.Green)
-            ) {
-                tableHeader(
-                    rowModifier = Modifier
-                        .border(width = 1.dp, color = Color.Black)
-                        .background(Color.Red)
-                ) {
-                    tableCell(boxModifier = Modifier
-                        .border(width = 1.dp, color = Color.Black)
-                        .weight(0.1f)) { Text("Column 1") }
-                    tableCell(boxModifier = Modifier
-                        .border(width = 1.dp, color = Color.Black)
-                        .weight(0.1f)) { Text("Column 2") }
+                    .background(Color.Green),
+                headerModifier =  Modifier
+                    .fillMaxWidth(),
+                headerContent = {
+                    tableHeader(
+                        rowModifier = Modifier
+                            .border(width = 1.dp, color = Color.Black)
+                            .background(Color.Red)
+                    ) {
+                        tableHeaderCell(0,
+                            boxModifier = Modifier
+                                .border(width = 1.dp, color = Color.Black)
+                                .weight(0.1f)
+                        ) { Text("Column 1") }
+                        tableHeaderCell(1,
+                            boxModifier = Modifier
+                                .border(width = 1.dp, color = Color.Black)
+                                .weight(0.1f)
+                        ) { Text("Column 2") }
+                    }
                 }
-                tableRow {
-                    tableCell {}
+            ){
+                for(i in 1 .. 20) {
+                    tableRow(
+                        rowModifier = Modifier
+                            .background(if (i % 2 == 0) Color.White else Color.LightGray)
+                    ) {
+                        tableCell(0,boxModifier = Modifier){Text("Item $i")}
+                        tableCell(1,boxModifier = Modifier) {Text("Desc $i")}
+                    }
                 }
             }
         }

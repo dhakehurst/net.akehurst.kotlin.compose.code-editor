@@ -45,7 +45,7 @@ class test_MultiPaneLayout {
             title = "Demo MultiPaneLayout",
         ) {
             GraphLayoutView(
-                layoutState = layoutState,
+                state = layoutState,
                 modifier = Modifier
                     .background(Color.Green),
             )

@@ -730,6 +730,7 @@ class MultiPaneLayoutState(
  * @param onPaneDragEnd Callback when a pane drag ends.
  * @param modifier Modifier for the current node.
  */
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun LayoutNodeRenderer(
     state: MultiPaneLayoutState,

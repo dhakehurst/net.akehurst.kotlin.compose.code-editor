@@ -10,10 +10,10 @@ import kotlin.math.min
 
 //data class Point(val x: Double, val y: Double)
 data class SugiyamaLayoutData<NT : Any>(
-    val totalWidth: Double,
-    val totalHeight: Double,
-    val nodePositions: Map<NT, Pair<Double, Double>>,
-    val edgeRoutes: Map<Pair<NT, NT>, List<Pair<Double, Double>>>
+    val totalWidth: Double = 100.0,
+    val totalHeight: Double= 100.0,
+    val nodePositions: Map<NT, Pair<Double, Double>> = emptyMap(),
+    val edgeRoutes: Map<Pair<NT, NT>, List<Pair<Double, Double>>> = emptyMap(),
 ) {
 }
 
