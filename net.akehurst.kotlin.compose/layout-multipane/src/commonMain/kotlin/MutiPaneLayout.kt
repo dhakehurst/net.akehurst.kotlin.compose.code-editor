@@ -523,10 +523,16 @@ class MultiPaneLayoutState(
         draggedPaneTitle: String,
         dropTarget: DropTarget
     ) {
+        val tgtId = when(dropTarget) {
+            is DropTarget.Tabbed -> dropTarget.otherId
+            is DropTarget.Split -> dropTarget.targetNodeId
+            is DropTarget.Reorder -> dropTarget.targetNodeId
+        }
         // If the drop target is NONE, or if the dragged pane is dropped onto itself, do nothing.
-        if (draggedPaneId == dropTarget.targetNodeId) {
+        if (draggedPaneId == tgtId) {
             return
         } else {
+            println("applyDrop: draggedPaneId=$draggedPaneId, dropTarget=$dropTarget")
             // 1. Create the new pane object that will be inserted
             val newPane = Pane(id = draggedPaneId, title = draggedPaneTitle, content = draggedPaneContent)
 
