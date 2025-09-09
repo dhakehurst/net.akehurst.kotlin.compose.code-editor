@@ -20,6 +20,7 @@ package me.saket.extendedspans
 import androidx.compose.runtime.Stable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.graphics.drawscope.translate
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.ExperimentalTextApi
 import androidx.compose.ui.text.LinkAnnotation
@@ -102,11 +103,13 @@ class ExtendedSpans(
     }
 }
 
-fun Modifier.drawBehind(spans: ExtendedSpans): Modifier {
+fun Modifier.drawBehind(spans: ExtendedSpans, scrollOffset:Float): Modifier {
     return drawBehind {
-        spans.drawInstructions.fastForEach { instructions ->
-            with(instructions) {
-                draw()
+        translate(top = -scrollOffset) {
+            spans.drawInstructions.fastForEach { instructions ->
+                with(instructions) {
+                    draw()
+                }
             }
         }
     }

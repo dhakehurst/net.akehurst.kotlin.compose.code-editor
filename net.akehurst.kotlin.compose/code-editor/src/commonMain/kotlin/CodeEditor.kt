@@ -19,11 +19,7 @@
 
 package net.akehurst.kotlin.compose.editor
 
-import androidx.compose.foundation.ExperimentalFoundationApi
-import androidx.compose.foundation.ScrollState
-import androidx.compose.foundation.background
-import androidx.compose.foundation.border
-import androidx.compose.foundation.hoverable
+import androidx.compose.foundation.*
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsFocusedAsState
 import androidx.compose.foundation.interaction.collectIsHoveredAsState
@@ -44,25 +40,25 @@ import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.input.key.*
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.TextLayoutResult
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.buildAnnotatedString
-import androidx.compose.ui.unit.IntOffset
-import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
+import androidx.compose.ui.unit.*
 import androidx.compose.ui.zIndex
-import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.launch
 import me.saket.extendedspans.ExtendedSpans
 import me.saket.extendedspans.SquigglyUnderlineSpanPainter
 import me.saket.extendedspans.drawBehind
-import net.akehurst.kotlin.compose.editor.api.AutocompleteFunction
-import net.akehurst.kotlin.compose.editor.api.EditorSegmentStyle
-import net.akehurst.kotlin.compose.editor.api.TextDecorationStyle
+import net.akehurst.kotlin.compose.components.flowHolder.mutableStateFlowHolderOf
+import net.akehurst.kotlin.compose.editor.api.*
+import kotlin.comparisons.minOf
 import kotlin.math.roundToInt
+import kotlin.ranges.coerceIn
 
 /*
  * KEY_PRESSED
@@ -95,125 +91,186 @@ data class CursorDetails(
     }
 }
 
+data class CodeEditorState(
+    val inputTextFieldState: State<TextFieldState>,
+    val extendedSpans: ExtendedSpans,
+    val inputScrollState: ScrollState,
+//    val annotatedText: AnnotatedString,
+    val giveFocus: Boolean,
+    val lastTextLayoutResult: TextLayoutResult?,
+    val viewFirstLine: Int,
+    val viewLastLine: Int,
+    val lineScrollOffset:Float,
+    val lineTokens: Map<Int, List<EditorSegmentStyle>>,
+//    val viewFirstLineStartTextPosition: Int,
+//    val viewLastLineFinishTextPosition: Int,
+//    val cursorDetails: CursorDetails,
+//    val marginItemsVisible: List<MarginItem>,
+//    val marginItemHovered: List<MarginItem>,
+    val textMarkersVisible: List<TextMarkerDefault>,
+)
 
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
-fun CodeEditor(
+fun CodeEditorView(
+    editorState: CodeEditorStateHolder = CodeEditorStateHolder(
+        initialText = "",
+        defaultTextStyle = SpanStyle(color = MaterialTheme.colorScheme.onBackground)
+    ),
     textStyle: TextStyle = TextStyle.Default,
     modifier: Modifier = Modifier,
     autocompleteModifier: Modifier = Modifier,
     marginItemHoverModifier: Modifier = Modifier,
-    editorState: EditorState = EditorState(
-        initialText = "",
-        defaultTextStyle = SpanStyle(color = MaterialTheme.colorScheme.onBackground),
-        onTextChange = {},
-        requestAutocompleteSuggestions = { _, _ -> },
-    )
 ) {
-    val MARGIN_WIDTH = 20.dp
-    val state by remember { mutableStateOf(editorState) }
 
-    rememberCoroutineScope().also {
-        editorState.scope = it
-        editorState.autocompleteState.scope = it
+    //val state by remember { mutableStateOf(editorState) }
+    val state: CodeEditorState = editorState.collectAsState()
+    val marginItemsState = editorState.collectVisibleMarginItemsAsState( //TODO: maybe pass the CodeEditorState !
+        state.viewFirstLine,
+        state.viewLastLine,
+        state.lineScrollOffset,
+        state.lastTextLayoutResult
+    )
+
+    val scope = rememberCoroutineScope().also {
+        editorState._autocompleteState.scope = it
     }
 
     Row(
         modifier = modifier//.weight(1f)
     ) {
-        // Margin Annotations
-        Box(
-            modifier = Modifier
-                .width(MARGIN_WIDTH)
-                .fillMaxHeight()
-//                .background(color = MaterialTheme.colorScheme.surfaceVariant)
-                .wrapContentWidth(unbounded = true, align = Alignment.Start)
-                .zIndex(1f),
-        ) {
-            state.lastTextLayoutResult?.let { textLayoutResult ->
-                for (ann in state.marginItemsVisible) {
-                    Icon(
-                        ann.icon, contentDescription = ann.text, tint = ann.color,
-                        modifier = Modifier
-                            .width(MARGIN_WIDTH)
-                            .offset(y = ann.offsetFromTopOfViewport(state.viewFirstLine, textLayoutResult))
-                            .hoverable(ann.interactionSource)
-                    )
-                    ann.isHovered = ann.interactionSource.collectIsHoveredAsState().value
-                }
-                state.marginItemHovered.forEach { ann ->
-                    Text(
-                        text = ann.text,
-                        modifier = marginItemHoverModifier
-                            .offset(
-                                y = ann.offsetFromTopOfViewport(state.viewFirstLine, textLayoutResult) + ann.lineHeight(textLayoutResult) / 2,
-                                x = MARGIN_WIDTH / 2
-                            )
-                            .background(color = MaterialTheme.colorScheme.surfaceVariant)
-                            .border(1.dp, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                            .hoverable(ann.interactionSource)
-                    )
-                }
-            }
-        }
-        //Text editing
-        Box(
-            modifier = Modifier
-                .fillMaxSize()
-//                .background(color = MaterialTheme.colorScheme.surface),
-        ) {
+        annotationMargin(marginItemsState, marginItemHoverModifier)
+        textEditor(
+            state = state,
+            textStyle = textStyle,
+            outputTransformation = {
+                CodeEditorStateHolder.annotateTextFieldBuffer(
+                    this,
+                    state.viewFirstLine,
+                    state.viewLastLine,
+                    state.lineTokens,
+                    state.textMarkersVisible,
+                    { editorState.lastAnnotatedText = it}
+                )
+            },
+            onTextLayout = { r ->
+                r.invoke()?.let { editorState.onInputTextLayout(it) }
+            },
+            handlePreviewKeyEvent = { ev -> editorState.handlePreviewKeyEvent(ev) },
+            handleKeyEvent = { ev -> editorState.handleKeyEvent(ev) },
+            onTextChange = { editorState.onTextChange.invoke(it) },
+            onInputScroll = { editorState.onInputScroll(it) },
+            onFocusChanged = { editorState.isFocused = it; editorState.giveFocus = false }
+        )
 
-            BasicTextField(
-                cursorBrush = SolidColor(MaterialTheme.colorScheme.onSurface),
-                textStyle = textStyle,
-                state = state.inputTextFieldState,
-                modifier = Modifier
-                    .fillMaxSize()
-                    .onPreviewKeyEvent { ev -> state.handlePreviewKeyEvent(ev) }
-                    .onKeyEvent { ev -> state.handleKeyEvent(ev) }
-                    .focusRequester(state.focusRequester)
-                    .drawBehind(state.extendedSpans),
-                onTextLayout = { r ->
-                    r.invoke()?.let { state.onInputTextLayout(it) }
-                },
-                scrollState = state.inputScrollState,
-                interactionSource = state.interactionSource,
-                outputTransformation = state.outputTransformation,
-            )
-
-            // to invoke the 'onTextChange' callback when text changes
-            LaunchedEffect(state.inputRawText) {
-                snapshotFlow { state.inputRawText }.collect { state.onInputChange(it) }
-            }
-
-            LaunchedEffect(state.inputScrollState.value) {
-                snapshotFlow { state.inputScrollState }.collect { state.onInputScroll(it) }
-            }
-
-            SideEffect {
-                if (state.giveFocus) {
-                    state.focusRequester.requestFocus()
-                    state.giveFocus = false
-                }
-            }
-            AutocompletePopup2(
-                state = state.autocompleteState,
-                modifier = autocompleteModifier,
-            )
-        }
+        AutocompletePopup2(
+            state = editorState._autocompleteState,
+            modifier = autocompleteModifier,
+        )
     }
-
-    state.isFocused = state.interactionSource.collectIsFocusedAsState().value
 }
 
+@Composable
+fun annotationMargin(state: MarginItemsState, marginItemHoverModifier: Modifier = Modifier) {
+    Box(
+        modifier = Modifier
+            .width(state.marginWidth)
+            .fillMaxHeight()
+//                .background(color = MaterialTheme.colorScheme.surfaceVariant)
+            .wrapContentWidth(unbounded = true, align = Alignment.Start)
+            .zIndex(1f),
+    ) {
+        state.visibleItems.forEach { item ->
+            val interactionSource = remember { MutableInteractionSource() }
+            Icon(
+                imageVector = item.item.icon,
+                contentDescription = item.item.text,
+                tint = item.item.color,
+                modifier = Modifier.width(state.marginWidth)
+                    .offset(y = with(LocalDensity.current) {item.offsetFromTopOfViewport.toDp()})
+                    .hoverable(interactionSource)
+            )
+            val isHovered = interactionSource.collectIsHoveredAsState().value
+            if (isHovered) {
+                Text(
+                    text = item.item.text,
+                    modifier = marginItemHoverModifier
+                        .offset(
+                            y = with(LocalDensity.current) {item.detailOffsetFromTopOfViewport.toDp()},
+                            x = state.marginWidth / 2
+                        )
+                        .background(color = MaterialTheme.colorScheme.surfaceVariant)
+                        .border(1.dp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        .hoverable(interactionSource)
+                )
+            }
+        }
+    }
+}
 
-class EditorState(
+@Composable
+fun textEditor(
+    state: CodeEditorState,
+    outputTransformation: OutputTransformation,
+    textStyle: TextStyle,
+    onTextLayout: (Density.(getResult: () -> TextLayoutResult?) -> Unit),
+    handlePreviewKeyEvent: (KeyEvent) -> Boolean,
+    handleKeyEvent: (KeyEvent) -> Boolean,
+    onTextChange: (CharSequence) -> Unit,
+    onInputScroll: (ScrollState) -> Unit,
+    onFocusChanged: (Boolean) -> Unit,
+) {
+    val scope = rememberCoroutineScope()
+    val interactionSource = remember { MutableInteractionSource() }
+    val focusRequester by remember { mutableStateOf(FocusRequester()) }
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+//                .background(color = MaterialTheme.colorScheme.surface),
+    ) {
+
+        BasicTextField(
+            cursorBrush = SolidColor(MaterialTheme.colorScheme.onSurface),
+            textStyle = textStyle,
+            state = state.inputTextFieldState.value,
+            modifier = Modifier
+                .fillMaxSize()
+                .onPreviewKeyEvent { ev -> handlePreviewKeyEvent(ev) }
+                .onKeyEvent { ev -> handleKeyEvent(ev) }
+                .focusRequester(focusRequester)
+                .drawBehind(state.extendedSpans, state.inputScrollState.value.toFloat()),
+            onTextLayout = onTextLayout,
+            scrollState = state.inputScrollState,
+            interactionSource = interactionSource,
+            outputTransformation = outputTransformation,
+        )
+
+        // to invoke the 'onTextChange' callback when text changes
+        LaunchedEffect(state.inputTextFieldState.value.text) {
+            snapshotFlow { state.inputTextFieldState.value.text }.collect { scope.launch { onTextChange(it) } }
+        }
+
+        LaunchedEffect(state.inputScrollState.value) {
+            snapshotFlow { state.inputScrollState }.collect { onInputScroll(it) }
+        }
+
+        val isFocused by interactionSource.collectIsFocusedAsState()
+        LaunchedEffect(isFocused) { onFocusChanged.invoke(isFocused) }
+
+        SideEffect {
+            if (state.giveFocus) {
+                focusRequester.requestFocus()
+            }
+        }
+
+    }
+}
+
+class CodeEditorStateHolder(
     initialText: String = "",
     val defaultTextStyle: SpanStyle = SpanStyle(color = Color.Black, background = Color.White),
-    val onTextChange: (CharSequence) -> Unit = {},
-    requestAutocompleteSuggestions: AutocompleteFunction = { _, _ -> }
-) {
-    companion object {
+) : ComposeCodeEditor {
+    companion object Companion {
         val STRAIGHT = SquigglyUnderlineSpanPainter(
             "STRAIGHT",
             width = 3.sp,
@@ -230,6 +287,45 @@ class EditorState(
             bottomOffset = 1.sp,
             //animator = underlineAnimator
         )
+
+        // currently used for margin item positions and limits the position to in range of first/last lines
+        private fun offsetFromTopOfViewport(lineNumber: Int, viewFirstLine: Int, viewLastLine: Int, lineScrollOffset:Float, textLayoutResult: TextLayoutResult): Float {
+            //val lineBot = textLayoutResult.getLineBottom(lineNumber)
+//println("lineNumber: $lineNumber, viewFirstLine:$viewFirstLine, viewLastLine: $viewLastLine, lineScrollOffset: $lineScrollOffset")
+            return when {
+                lineNumber < (viewFirstLine+1) -> 0f // if line is partially visible, just use top of viewport
+                lineNumber >= (viewLastLine-1) -> textLayoutResult.getLineTop(viewLastLine)- lineScrollOffset // likewise don't go below last line
+                else -> {
+                    val lineIndex = lineNumber - viewFirstLine
+                    textLayoutResult.getLineTop(lineIndex) - lineScrollOffset
+                }
+            }
+        }
+
+        private fun lineHeight(textLayoutResult: TextLayoutResult, lineNumber: Int): Float {
+            return if (lineNumber >= 0 && lineNumber < textLayoutResult.lineCount) {
+                textLayoutResult.getLineBottom(lineNumber) - textLayoutResult.getLineTop(lineNumber)
+            } else {
+                0f
+            }
+        }
+
+        internal fun annotateTextFieldBuffer(
+            buffer: TextFieldBuffer,
+            viewFirstLine: Int,
+            viewLastLine: Int,
+            lineStyles: Map<Int, List<EditorSegmentStyle>>,
+            textMarkers: List<TextMarkerDefault>,
+            annotatedTextChange: (AnnotatedString) -> Unit
+        ) {
+            val rawText = buffer.asCharSequence()
+            if (rawText.isNotEmpty()) {
+                val annotatedText = annotateText(rawText, viewFirstLine, viewLastLine, lineStyles, textMarkers)
+                buffer.setComposition(0, rawText.length, annotatedText.annotations)
+                buffer.changeTracker.trackChange(0, rawText.length, rawText.length)
+                annotatedTextChange.invoke(annotatedText)
+            }
+        }
 
         fun annotateText(rawText: CharSequence, viewFirstLine: Int, viewLastLine: Int, lineTokens: Map<Int, List<EditorSegmentStyle>>, markers: List<TextMarkerDefault>): AnnotatedString {
             return if (rawText.isEmpty()) {
@@ -256,7 +352,7 @@ class EditorState(
                         // println("Marker at: ${marker.position} length ${marker.length} line $lineNum")
                         val offsetStart = (marker.position).coerceIn(0, rawText.length)
                         val offsetFinish = (marker.position + marker.length).coerceIn(0, rawText.length)
-                        // println("Style at: ${offsetStart} .. ${offsetFinish}")
+                        //println("Style at: ${offsetStart} .. ${offsetFinish}")
                         val ss = when (marker.decoration) {
                             TextDecorationStyle.NONE -> null
                             TextDecorationStyle.STRAIGHT -> STRAIGHT.decorate(marker.style, offsetStart, offsetFinish, builder = this)
@@ -269,81 +365,104 @@ class EditorState(
         }
     }
 
-    var scope: CoroutineScope? = null
+    private val MARGIN_WIDTH = 20.dp
+    private val interactionSource = MutableInteractionSource()
+    private var giveFocus = false
+    private var isFocused = false
+    private val focusRequester by mutableStateOf(FocusRequester())
 
-    val interactionSource = MutableInteractionSource()
-    var giveFocus = false
-    var isFocused = false
-    val focusRequester by mutableStateOf(FocusRequester())
+//    private val inputTextFieldState by mutableStateOf(TextFieldState(initialText))
+    private val inputTextFieldState = mutableStateFlowHolderOf(TextFieldState(initialText))
+    private val _inputRawText by derivedStateOf { snapshotFlow { inputTextFieldState.value.text } }
+    private val _lineStyles = mutableStateMapOf<Int, List<EditorSegmentStyle>>()
 
-    val inputTextFieldState by mutableStateOf(TextFieldState(initialText))
-    val inputRawText by derivedStateOf { inputTextFieldState.text }
-    val lineStyles = mutableStateMapOf<Int, List<EditorSegmentStyle>>()
-
-    var lastAnnotatedText: AnnotatedString? = null
-    val inputScrollState by mutableStateOf(ScrollState(0))
+    internal var lastAnnotatedText: AnnotatedString? = null
+    private val inputScrollState by mutableStateOf(ScrollState(0))
     // val inputScrollerViewportSize get() = inputScrollState.maxValue// viewportSize
     // val inputScrollerOffset get() = inputScrollState.value
 
     // so we can get the annotatedstring
-    var lastTextLayoutResult: TextLayoutResult? = null
+    private var lastTextLayoutResult: TextLayoutResult? = null
 
-    val viewCursor by mutableStateOf(CursorDetails(SolidColor(Color.Red)))
-    var viewFirstLine by mutableStateOf(0)
-    var viewLastLine by mutableStateOf(0)
-    var viewFirstLineStartTextPosition by mutableStateOf(0)
-    var viewLastLineFinishTextPosition by mutableStateOf(0)
+    private val viewCursor by mutableStateOf(CursorDetails(SolidColor(Color.Red)))
+    private var viewFirstLine by mutableStateOf(0)
+    private var viewLastLine by mutableStateOf(0)
+    private var lineScrollOffset by mutableStateOf(0f)
+    private var viewFirstLineStartTextPosition by mutableStateOf(0)
+    private var viewLastLineFinishTextPosition by mutableStateOf(0)
 
     //val inputTransformation = InputTransformation({
     //     annotateTextFieldBuffer(this)
     // })
-    val outputTransformation = OutputTransformation({
-        annotateTextFieldBuffer(this)
-    })
+//    private val outputTransformation = OutputTransformation({
+//        annotateTextFieldBuffer(this)
+//    })
 
-    val autocompleteState by mutableStateOf(
-        AutocompleteStateCompose(
-            getText = { this.inputTextFieldState.text },
-            getCursorPosition = { this.inputTextFieldState.selection.min },
+    private val _autocompleteState by mutableStateOf(
+        AutocompleteStateCompose( //TODO: don't get 'value' of inputTextFieldState flow
+            getText = { this.inputTextFieldState.value.text },
+            getCursorPosition = { this.inputTextFieldState.value.selection.min },
             getMenuOffset = { cursorPos() },
             insertText = { offset, txt ->
-                val start = inputTextFieldState.selection.min
-                val end = inputTextFieldState.selection.max
+                val start = inputTextFieldState.value.selection.min
+                val end = inputTextFieldState.value.selection.max
 //                val s = minOf(start,end)
 //                val e = maxOf(start,end)
-                this.inputTextFieldState.edit {
+                this.inputTextFieldState.value.edit {
                     this.replace(start - offset, end, txt)
                 }
-            },
-            requestAutocompleteSuggestions = requestAutocompleteSuggestions
+            }
         )
     )
 
-    val marginItemsState by mutableStateOf(MarginItemsState())
-    val marginItemsVisible by derivedStateOf {
-        marginItemsState.items.filter { viewFirstLine <= it.lineNumber && it.lineNumber <= viewLastLine }
-    }
-    val marginItemHovered by derivedStateOf {
-        marginItemsState.items.filter { it.isHovered }
-    }
+    private val _marginItemsStateHolder = MarginItemsStateHolder()
 
-    val textMarkersState by mutableStateOf(TextMarkerState()) //TODO: try using TextFieldDecorator for these
-    val textMarkersVisible by derivedStateOf {
+    private val textMarkersState by mutableStateOf(TextMarkerState()) //TODO: try using TextFieldDecorator for these
+    private val textMarkersVisible by derivedStateOf {
         textMarkersState.markers.filter { viewFirstLineStartTextPosition <= it.position && it.position <= viewLastLineFinishTextPosition }
     }
 
     // val underlineAnimator = rememberSquigglyUnderlineAnimator()
-    val extendedSpans = ExtendedSpans(STRAIGHT, SQUIGGLY)
+    private val extendedSpans = ExtendedSpans(STRAIGHT, SQUIGGLY)
+
+    @Composable
+    fun collectAsState(): CodeEditorState {
+        return CodeEditorState(
+            inputTextFieldState = this.inputTextFieldState.collectAsState(),
+            extendedSpans = this.extendedSpans,
+            inputScrollState = this.inputScrollState,
+            giveFocus = this.giveFocus,
+            lastTextLayoutResult = this.lastTextLayoutResult,
+            viewFirstLine = this.viewFirstLine,
+            viewLastLine = this.viewLastLine,
+            lineScrollOffset = lineScrollOffset,
+            lineTokens = lineStyles,
+            textMarkersVisible = textMarkersVisible
+        )
+    }
+
+    @Composable
+    fun collectVisibleMarginItemsAsState(viewFirstLine: Int, viewLastLine:Int, lineScrollOffset:Float, textLayoutResult: TextLayoutResult?): MarginItemsState {
+        val visibleItems = _marginItemsStateHolder.stateFlow.collectAsState()
+        return MarginItemsState(
+            marginWidth = MARGIN_WIDTH,
+            visibleItems = visibleItems.value.map { item ->
+                val offsetFromTopOfViewport = textLayoutResult?.let { tlr -> offsetFromTopOfViewport(item.lineNumber, viewFirstLine, viewLastLine,lineScrollOffset,tlr) } ?: 0f
+                val detailOffset = textLayoutResult?.let { tlr -> offsetFromTopOfViewport + lineHeight(tlr, item.lineNumber) / 2 } ?: 0f
+                MarginItemState(item, offsetFromTopOfViewport, detailOffset)
+            }
+        )
+    }
 
     fun handlePreviewKeyEvent(ev: KeyEvent): Boolean {
         //println("$ev ${ev.key} ${ev.key.keyCode}")
         var handled = true
         when (ev.type) {
             KeyEventType.KeyDown -> when {
-                this.autocompleteState.isVisible -> this.autocompleteState.handlePreviewKeyEvent(ev)
+                this._autocompleteState.isVisible -> this._autocompleteState.handlePreviewKeyEvent(ev)
                 else -> when {
                     ev.isCtrlPressed || ev.isMetaPressed -> when {
-                        ev.isCtrlSpace -> autocompleteState.open()
+                        ev.isCtrlSpace -> _autocompleteState.open()
                         else -> handled = false
                     }
 
@@ -382,10 +501,12 @@ class EditorState(
         }
     }
 
-    fun onInputChange(newText: CharSequence) {
-        scope?.launch {
-            onTextChange(newText)
+    // useful helpers
+    fun setNewText(text: String) {
+        this.inputTextFieldState.update {
+            TextFieldState(text, it.selection)
         }
+        //this.inputTextFieldState.setTextAndPlaceCursorAtEnd(text)
     }
 
     fun onInputScroll(i: ScrollState) {
@@ -395,38 +516,26 @@ class EditorState(
     }
 
     fun onInputTextLayout(textLayoutResult: TextLayoutResult) {
-        autocompleteState.close()
+        _autocompleteState.close()
         updateViewDetails(textLayoutResult)
         lastTextLayoutResult = textLayoutResult
-        //addTextMarkers(textLayoutResult)
         extendedSpans.onTextLayout(textLayoutResult)
-    }
-
-    fun refresh() {
-        //FIXME: calling this seem to stop the undo/redo from working...not sure it is even needed
-        // create an edit causing a recomposition
-        // the refresh requires triggering of a text layout
-        inputTextFieldState.edit {
-            annotateTextFieldBuffer(this)
-        }
-    }
-
-    fun setNewText(text: String) {
-        this.inputTextFieldState.setTextAndPlaceCursorAtEnd(text)
     }
 
     private fun updateViewDetails(textLayoutResult: TextLayoutResult) {
         val st = inputScrollState.value.toFloat()
         val len = inputScrollState.viewportSize
         viewFirstLine = textLayoutResult.getLineForVerticalPosition(st)
-        viewLastLine = textLayoutResult.getLineForVerticalPosition(st + len)
+        viewLastLine = textLayoutResult.getLineForVerticalPosition(st + len-1)
         viewFirstLineStartTextPosition = textLayoutResult.getLineStart(viewFirstLine)
         viewLastLineFinishTextPosition = textLayoutResult.getLineEnd(viewLastLine)
+        val topOfFirstLine = textLayoutResult.getLineTop(viewFirstLine)
+        lineScrollOffset = st - topOfFirstLine
     }
 
     fun cursorPos(): IntOffset {
         // update the drawn cursor position
-        val sel = inputTextFieldState.selection
+        val sel = inputTextFieldState.value.selection
         val tlr = lastTextLayoutResult
         return if (null != tlr) {
             val txtLen = tlr.layoutInput.text.length
@@ -444,22 +553,84 @@ class EditorState(
     }
 
     fun setAllLineStyles(value: Map<Int, List<EditorSegmentStyle>>) {
-        lineStyles.clear()
-        lineStyles.putAll(value)
+        _lineStyles.clear()
+        _lineStyles.putAll(value)
     }
 
     fun setLineStyles(lineNumber: Int, styles: List<EditorSegmentStyle>) {
-        lineStyles[lineNumber] = styles
+        _lineStyles[lineNumber] = styles
     }
 
-    private fun annotateTextFieldBuffer(buffer: TextFieldBuffer) {
-        val rawText = buffer.asCharSequence()
-        if (rawText.isNotEmpty()) {
-            lastAnnotatedText = annotateText(rawText, this.viewFirstLine, this.viewLastLine, lineStyles, this.textMarkersVisible)
-            buffer.setComposition(0, rawText.length, lastAnnotatedText.annotations)
-            buffer.changeTracker.trackChange(0, rawText.length, rawText.length)
+//    private fun annotateTextFieldBuffer(buffer: TextFieldBuffer) {
+//        val rawText = buffer.asCharSequence()
+//        if (rawText.isNotEmpty()) {
+//            lastAnnotatedText = annotateText(rawText, this.viewFirstLine, this.viewLastLine, lineStyles, this.textMarkersVisible)
+//            buffer.setComposition(0, rawText.length, lastAnnotatedText.annotations)
+//            buffer.changeTracker.trackChange(0, rawText.length, rawText.length)
+//        }
+//    }
+
+    // --- ComposeCodeEditor ---
+
+    override var rawText: String
+        get() = this._inputRawText.toString()
+        set(value) {
+            this.setNewText(value)
         }
+
+    override var lineStyles: Map<Int, List<EditorSegmentStyle>>
+        get() = _lineStyles
+        set(value) {
+            setAllLineStyles(value)
+        }
+
+    override var annotatedText: AnnotatedString
+        get() = this.lastAnnotatedText ?: AnnotatedString("")
+        set(value) {
+            this.lastAnnotatedText = value
+            this.setNewText(value.text)
+        }
+
+    override var onTextChange: (CharSequence) -> Unit = {}
+
+    override val marginItems: List<MarginItem> get() = _marginItemsStateHolder.value
+
+    override val autocomplete: AutocompleteState get() = this._autocompleteState
+    override var requestAutocompleteSuggestions: AutocompleteFunction
+        get() = _autocompleteState.requestAutocompleteSuggestions
+        set(value) {
+            _autocompleteState.requestAutocompleteSuggestions = value
+        }
+
+    override fun focus() {
+        this.giveFocus = true
     }
+
+//    override fun refreshTokens() {
+//        //FIXME: calling this seem to stop the undo/redo from working...not sure it is even needed
+//        // create an edit causing a recomposition
+//        // the refresh requires triggering of a text layout
+//        inputTextFieldState.edit {
+//            annotateTextFieldBuffer(this)
+//        }
+//    }
+
+    override fun clearTextMarkers() {
+        this.textMarkersState.clear()
+    }
+
+    override fun addTextMarker(position: Int, length: Int, style: SpanStyle, decoration: TextDecorationStyle) {
+        this.textMarkersState.addMarker(position, length, style, decoration)
+    }
+
+    override fun clearMarginItems() {
+        this._marginItemsStateHolder.clear()
+    }
+
+    override fun addMarginItem(lineNumber: Int, kind: String, text: String, icon: ImageVector, color: Color) {
+        this._marginItemsStateHolder.addAnnotation(lineNumber, kind, text, icon, color)
+    }
+
 
 //    private fun addTextMarkers(textLayoutResult: TextLayoutResult) {
 //        val annText = textLayoutResult.layoutInput.text

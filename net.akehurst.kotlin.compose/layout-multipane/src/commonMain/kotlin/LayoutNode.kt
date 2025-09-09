@@ -1,7 +1,7 @@
 package net.akehurst.kotlin.compose.layout.multipane
 
 import androidx.compose.runtime.Composable
-import androidx.compose.ui.layout.Layout
+import androidx.compose.ui.geometry.Rect
 import net.akehurst.kotlinx.utils.UniqueIdentityGenerator
 
 /**
@@ -18,6 +18,7 @@ enum class SplitOrientation { Horizontal, Vertical }
 class Pane(
     val id: String = UniqueIdentityGenerator.generate("pane"),
     val title: String,
+    val update: () -> Unit = {},
     val content: @Composable () -> Unit
 ) {
     var tabBounds: RectInWindow? = null
@@ -33,6 +34,7 @@ class Pane(
         !is Pane -> false
         else -> id == other.id
     }
+
     override fun toString(): String = "Pane($id, $title) [$tabBounds, $contentBounds] "
 }
 
@@ -64,6 +66,11 @@ sealed class LayoutNode {
             )
         }
 
+        override fun updateAll() {}
+
+        override fun hashCode(): Int = 1
+        override fun equals(other: Any?): Boolean = other is Empty
+        override fun toString(): String = "Empty"
         override fun asString(indent: String): String = "${indent}empty"
     }
 
@@ -102,8 +109,8 @@ sealed class LayoutNode {
         }
 
         override fun insertPane(newPane: Pane, dropTarget: DropTarget) = when (dropTarget) {
-            is DropTarget.Tabbed ->  error("Should not happen $dropTarget")
-            is DropTarget.Split ->  insertPaneViaNewSplit(newPane, dropTarget)
+            is DropTarget.Tabbed -> error("Should not happen $dropTarget")
+            is DropTarget.Split -> insertPaneViaNewSplit(newPane, dropTarget)
             is DropTarget.Reorder -> insertPaneViaReorder(newPane, dropTarget)
         }
 
@@ -112,7 +119,7 @@ sealed class LayoutNode {
             val newWeights = mutableListOf<Float>()
             val newTabbed = LayoutNode.Tabbed(children = listOf(newPane))
             children.forEachIndexed { index, child ->
-                if(child.id==dropTarget.otherId) {
+                if (child.id == dropTarget.otherId) {
                     when (dropTarget.type) {
                         DropTarget.Split.Kind.LEFT -> {
                             newChildren.add(
@@ -203,6 +210,10 @@ sealed class LayoutNode {
             return copy(children = newChildren, weights = finalNormalizedWeights)
         }
 
+        override fun updateAll() {
+            children.forEach { it.updateAll() }
+        }
+
         override fun asString(indent: String): String = """
             |${indent}split ${orientation} ($id) {
             |${children.joinToString("\n") { it.asString("$indent  ") }}
@@ -216,11 +227,11 @@ sealed class LayoutNode {
         val selectedTabIndex: Int = 0
     ) : LayoutNode() {
 
-        override fun insertPaneIntoLayoutIterate(newPane: Pane, dropTarget: DropTarget): LayoutNode  = this
+        override fun insertPaneIntoLayoutIterate(newPane: Pane, dropTarget: DropTarget): LayoutNode = this
 
         override fun insertPane(newPane: Pane, dropTarget: DropTarget) = when (dropTarget) {
-            is DropTarget.Tabbed -> insertPaneViaAddTab( newPane, dropTarget)
-            is DropTarget.Split -> insertPaneViaNewSplit( newPane, dropTarget)
+            is DropTarget.Tabbed -> insertPaneViaAddTab(newPane, dropTarget)
+            is DropTarget.Split -> insertPaneViaNewSplit(newPane, dropTarget)
             is DropTarget.Reorder -> error("Cannot Reorder a pane into a tabbed container: $dropTarget")
         }
 
@@ -243,7 +254,7 @@ sealed class LayoutNode {
                     newChildren.add(child)
                 }
             }
-            return copy(children = newChildren, selectedTabIndex = newChildren.size-1)
+            return copy(children = newChildren, selectedTabIndex = newChildren.size - 1)
         }
 
         internal fun insertPaneViaNewSplit(newPane: Pane, dropTarget: DropTarget.Split): Split {
@@ -254,6 +265,10 @@ sealed class LayoutNode {
                 DropTarget.Split.Kind.TOP -> LayoutNode.Split(orientation = SplitOrientation.Vertical, children = listOf(newTabbed, this), weights = listOf(0.5f, 0.5f))
                 DropTarget.Split.Kind.BOTTOM -> LayoutNode.Split(orientation = SplitOrientation.Vertical, children = listOf(this, newTabbed), weights = listOf(0.5f, 0.5f))
             }
+        }
+
+        override fun updateAll() {
+            children.forEach { it.update.invoke() }
         }
 
         override fun asString(indent: String): String = """
@@ -272,7 +287,13 @@ sealed class LayoutNode {
 
     abstract fun insertPane(newPane: Pane, dropTarget: DropTarget): LayoutNode
 
-    abstract fun asString(indent: String=""): String
+    abstract fun updateAll()
+
+    abstract override fun hashCode(): Int
+    abstract override fun equals(other: Any?): Boolean
+    abstract override fun toString(): String
+
+    abstract fun asString(indent: String = ""): String
 
     fun forEachPane(action: (Pane) -> Unit) {
         when (this) {
@@ -304,6 +325,27 @@ sealed class LayoutNode {
         }
     }
 
+    fun findPaneOrNull(predicate: (Pane) -> Boolean): Pane? = this.firstPaneOfOrNull { split, tabbed, pane ->
+        if (predicate.invoke(pane)) pane else null
+    }
 
+    fun findTabbedOrNull(predicate: (LayoutNode.Tabbed) -> Boolean): LayoutNode.Tabbed? = this.firstPaneOfOrNull { split, tabbed, pane ->
+        if (predicate.invoke(tabbed)) tabbed else null
+    }
+
+    fun including(newPane: Pane): LayoutNode {
+        return if (this is LayoutNode.Empty) {
+            LayoutNode.Tabbed(children = listOf(newPane))
+        } else {
+            val lastTabbed = this.findTabbedOrNull { true } ?: error("There should be something found!")
+            val dropTarget = DropTarget.Tabbed(
+                rect = RectInWindow(Rect.Zero),
+                type = DropTarget.Tabbed.Kind.AFTER,
+                targetNodeId = lastTabbed.id,
+                otherId = lastTabbed.children.last().id,
+            )
+            insertPaneIntoLayout(newPane, dropTarget)
+        }
+    }
 }
 

@@ -29,7 +29,8 @@ import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.singleWindowApplication
-import net.akehurst.kotlin.compose.editor.ComposableCodeEditor
+import net.akehurst.kotlin.compose.editor.CodeEditorView
+import net.akehurst.kotlin.compose.editor.CodeEditorStateHolder
 import net.akehurst.kotlin.compose.editor.api.*
 import kotlin.test.Test
 
@@ -116,41 +117,37 @@ class test_CodeEditor {
     @OptIn(ExperimentalTextApi::class)
     @Test
     fun main() {
-        val composeEditor = ComposableCodeEditor(
-            initialText = """
+        val initialText = """
                     \red{Hello} \blue{World}
                     info
                     green
                     error
-                """.trimIndent(),
-            requestAutocompleteSuggestions = { request, result -> requestAutocompleteSuggestions(request, result) }
-
-        )
+                """.trimIndent()
+        val editorState = CodeEditorStateHolder(initialText)
+        editorState.requestAutocompleteSuggestions = { request, result -> requestAutocompleteSuggestions(request, result) }
         val info = Regex("info")
         val err = Regex("error")
         //val wavyStyle = PlatformSpanStyle(textDecorationLineStyle = TextDecorationLineStyle.Wavy)
-        composeEditor.onTextChange = {
+        editorState.onTextChange = {
             val lines = it.split("\n")
-            composeEditor.lineStyles = lines.mapIndexed { idx, ln -> Pair(idx, getLineTokens(ln)) }.toMap()
-
-            composeEditor.clearMarginItems()
-            composeEditor.clearTextMarkers()
+            editorState.lineStyles = lines.mapIndexed { idx, ln -> Pair(idx, getLineTokens(ln)) }.toMap()
+            editorState.clearMarginItems()
+            editorState.clearTextMarkers()
             lines.forEachIndexed { idx, ln ->
                 when {
-                    ln.contains("info") -> composeEditor.addMarginItem(idx, "Info", "Some info", Icons.Outlined.Info, Color.Blue)
-                    ln.contains("error") -> composeEditor.addMarginItem(idx, "Error", "Some error", Icons.Outlined.Warning, Color.Red)
+                    ln.contains("info") -> editorState.addMarginItem(idx, "Info", "Some info", Icons.Outlined.Info, Color.Blue)
+                    ln.contains("error") -> editorState.addMarginItem(idx, "Error", "Some error", Icons.Outlined.Warning, Color.Red)
                 }
             }
-
             info.findAll(it).forEach {
-                composeEditor.addTextMarker(
+                editorState.addTextMarker(
                     it.range.start, it.range.endInclusive - it.range.start + 1,
                     SpanStyle(color = Color.Blue),//, textDecoration = TextDecoration.Underline, platformStyle = wavyStyle),
                     TextDecorationStyle.STRAIGHT
                 )
             }
             err.findAll(it).forEach {
-                composeEditor.addTextMarker(
+                editorState.addTextMarker(
                     it.range.start, it.range.endInclusive - it.range.start + 1,
                     SpanStyle(color = Color.Red),//, textDecoration = TextDecoration.Underline, platformStyle = wavyStyle),
                     TextDecorationStyle.SQUIGGLY
@@ -162,7 +159,8 @@ class test_CodeEditor {
             title = "Code Editor 3 Test",
         ) {
             Surface {
-                composeEditor.content(
+                CodeEditorView(
+                    editorState = editorState,
                     //textStyle = TextStyle(fontFamily = FontFamily.Cursive),
                     autocompleteModifier = Modifier.width(500.dp).heightIn(30.dp, 300.dp)
                 )

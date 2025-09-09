@@ -28,17 +28,18 @@ data class TreeViewNode(
     var children by mutableStateOf<List<TreeViewNode>>(emptyList())
 }
 
-@Stable
-class TreeViewState {
+class TreeViewStateHolder(
 
+) {
     var items by mutableStateOf(listOf(TreeViewNode("<no content>")))
     val lazyListState = LazyListState()
 
-    fun setNewItems(newItems: List<TreeViewNode>) {
+    fun updateItems(newItems: List<TreeViewNode>) {
         items = newItems
     }
 }
 
+/*
 private fun toggleExpanded(expandedItems: MutableList<TreeViewNode>, node: TreeViewNode) {
     if (expandedItems.contains(node)) {
         expandedItems.remove(node)
@@ -46,11 +47,12 @@ private fun toggleExpanded(expandedItems: MutableList<TreeViewNode>, node: TreeV
         expandedItems.add(node)
     }
 }
+*/
 
 @Composable
 fun TreeView(
     modifier: Modifier = Modifier,
-    state: TreeViewState,
+    stateHolder: TreeViewStateHolder,
     onSelectItem: (item: TreeViewNode) -> Unit = {},
     expanded: @Composable (Modifier) -> Unit = { modifier -> Icon(imageVector = Icons.AutoMirrored.Default.ArrowForward, contentDescription = "Close", modifier = modifier) },
     collapsed: @Composable (Modifier) -> Unit = { modifier -> Icon(imageVector = Icons.Default.ArrowDropDown, contentDescription = "Open", modifier = modifier) },
@@ -59,11 +61,11 @@ fun TreeView(
     val expandedItems = remember { mutableStateListOf<TreeViewNode>() }
 
     LazyColumn(
-        state = state.lazyListState
+        state = stateHolder.lazyListState
     ) {
         nodes(
             level = 0,
-            nodes = state.items,
+            nodes = stateHolder.items,
             isExpanded = {
                 expandedItems.contains(it)
             },

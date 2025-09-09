@@ -8,6 +8,7 @@ kotlin {
         commonMain {
             dependencies {
                 api(project(":code-editor-api"))
+                implementation(project(":components")) //for mutableStateFlowHolder
                 implementation(compose.ui)
                 implementation(compose.foundation)
                 implementation(compose.material3)

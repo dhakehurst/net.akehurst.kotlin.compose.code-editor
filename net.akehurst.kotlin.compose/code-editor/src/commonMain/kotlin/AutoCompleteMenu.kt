@@ -51,7 +51,7 @@ fun <T> MutableList<T>.setOrAdd(index: Int, element: T) {
         index < this.size -> this[index] = element
         index == this.size -> this.add(element)
         else -> {
-            while(this.size < index) {
+            while (this.size < index) {
                 this.add(-1 as T)
             }
             this.add(element)
@@ -164,9 +164,10 @@ internal fun AutocompletePopup2(
                                     modifier = Modifier
                                         // need height of items in order to scroll
                                         .onSizeChanged { size ->
-                                            state.dropdownItemHeight.setOrAdd(idx,size.height)
+                                            state.dropdownItemHeight.setOrAdd(idx, size.height)
                                         }
                                 )
+
                                 is AutocompleteItemContent -> {
                                     nonDividerIdx++
 //                                    DropdownMenuItem(
@@ -197,7 +198,7 @@ internal fun AutocompletePopup2(
                                         modifier = Modifier
                                             // need height of items in order to scroll
                                             .onSizeChanged { size ->
-                                                    state.dropdownItemHeight.setOrAdd(idx,size.height)
+                                                state.dropdownItemHeight.setOrAdd(idx, size.height)
                                             }
 //                                            .height(with(LocalDensity.current) {
 //                                                state.dropdownItemHeight.getOrNull(idx)?.toDp() ?: 20.dp }
@@ -231,10 +232,11 @@ class AutocompleteStateCompose(
     val getText: () -> CharSequence,
     val getCursorPosition: () -> Int,
     val getMenuOffset: () -> IntOffset,
-    val insertText: (offset:Int, text:String) -> Unit,
-    val requestAutocompleteSuggestions: AutocompleteFunction
+    val insertText: (offset: Int, text: String) -> Unit
 ) : AutocompleteState {
     var scope: CoroutineScope? = null
+
+    var requestAutocompleteSuggestions: AutocompleteFunction = { _, _ -> }
 
     var itemTextLength by mutableStateOf(-1)
     var itemLabelLength by mutableStateOf(-1)
@@ -264,7 +266,7 @@ class AutocompleteStateCompose(
         //println(selectedIndex)
         scope?.launch {
             val dist = dropdownItemHeight.take(selectedIndex).sum()
-            scrollState.scrollTo(dist-100)
+            scrollState.scrollTo(dist - 100)
         }
     }
 

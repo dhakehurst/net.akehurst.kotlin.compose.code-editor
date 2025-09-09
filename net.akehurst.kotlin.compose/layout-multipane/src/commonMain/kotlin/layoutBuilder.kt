@@ -108,8 +108,8 @@ class SplitBuilder(
     /**
      * convenience: adds a single pane inside a tabbed layout
      */
-    fun pane(weight: Float, id: String = UniqueIdentityGenerator.generate("pane"), title: String, content: @Composable () -> Unit) {
-        children.add(LayoutNode.Tabbed(children = listOf(Pane(id, title, content))))
+    fun pane(weight: Float, id: String = UniqueIdentityGenerator.generate("pane"), title: String, update:()->Unit = {}, content: @Composable () -> Unit) {
+        children.add(LayoutNode.Tabbed(children = listOf(Pane(id, title, update=update, content=content))))
         weights.add(weight)
     }
 
@@ -130,8 +130,8 @@ class TabbedBuilder(private val nodeId: String) {
     /**
      * Adds a [LayoutNode.Pane] as a tab.
      */
-    fun pane(id: String = UniqueIdentityGenerator.generate("pane"), title: String, content: @Composable () -> Unit) {
-        children.add(Pane(id, title, content))
+    fun pane(id: String = UniqueIdentityGenerator.generate("pane"), title: String, update:()->Unit = {}, content: @Composable () -> Unit) {
+        children.add(Pane(id, title,  update=update, content=content))
     }
 
 //    /**

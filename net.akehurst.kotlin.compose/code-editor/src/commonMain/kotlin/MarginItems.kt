@@ -16,16 +16,13 @@
 
 package net.akehurst.kotlin.compose.editor
 
-import androidx.compose.runtime.*
-import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.runtime.Stable
-import androidx.compose.runtime.mutableStateListOf
-import androidx.compose.runtime.mutableStateOf
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
-import androidx.compose.ui.text.TextLayoutResult
 import androidx.compose.ui.unit.Dp
-import androidx.compose.ui.unit.dp
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.update
 import net.akehurst.kotlin.compose.editor.api.MarginItem
 
 data class MarginItemDefault(
@@ -34,33 +31,34 @@ data class MarginItemDefault(
     override val text: String,
     override val icon: ImageVector,
     override val color: Color
-) : MarginItem {
-    val interactionSource = MutableInteractionSource()
-    var isHovered by mutableStateOf(false)
+) : MarginItem
 
-    fun lineHeight(textLayoutResult: TextLayoutResult): Dp {
-        val fl = textLayoutResult.getLineBottom(lineNumber) - textLayoutResult.getLineTop(lineNumber)
-        return fl.dp
-    }
+data class MarginItemsState(
+    val marginWidth: Dp,
+    val visibleItems: List<MarginItemState>
+)
 
-    fun offsetFromTopOfViewport(viewTopLine:Int, textLayoutResult: TextLayoutResult): Dp {
-        val lineBot = textLayoutResult.getLineBottom(lineNumber)
-        val fl = textLayoutResult.getLineTop(lineNumber - viewTopLine)
-        return fl.dp / 2
-    }
-
-}
+data class MarginItemState(
+    val item: MarginItem,
+    val offsetFromTopOfViewport: Float,
+    val detailOffsetFromTopOfViewport: Float,
+)
 
 @Stable
-class MarginItemsState {
+class MarginItemsStateHolder {
 
-    var items = mutableStateListOf<MarginItemDefault>()
+    val _mutableStateFlow = MutableStateFlow(emptyList<MarginItem>())
+    val stateFlow = _mutableStateFlow.asStateFlow()
+
+    val value get() = _mutableStateFlow.value
 
     fun clear() {
-        items.clear()
+        _mutableStateFlow.update { emptyList() }
     }
 
     fun addAnnotation(lineNumber: Int, kind:String, text: String, icon: ImageVector, color: Color) {
-        items.add(MarginItemDefault(lineNumber, kind, text, icon, color))
+        _mutableStateFlow.update {
+            it + MarginItemDefault(lineNumber, kind, text, icon, color)
+        }
     }
 }

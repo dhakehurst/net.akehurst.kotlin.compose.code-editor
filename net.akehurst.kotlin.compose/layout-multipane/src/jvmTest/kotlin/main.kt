@@ -54,7 +54,7 @@ class test_MultiPaneLayout {
                                     }*/
             }
         }
-        println(lay.asString(""))
+        //println(lay.asString(""))
         val layoutState = MultiPaneLayoutState(
             lay,
             onLayoutChanged = {

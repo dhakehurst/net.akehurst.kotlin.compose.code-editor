@@ -152,6 +152,7 @@ class SquigglyUnderlineSpanPainter(
     private fun Path.buildSquigglesFor(box: Rect, density: Density) = density.run {
         val lineStart = box.left + (width.toPx() / 2)
         val lineEnd = box.right - (width.toPx() / 2)
+        if (lineStart >= lineEnd) return@run
         val lineBottom = box.bottom + bottomOffset.toPx()
 
         val segmentWidth = wavelength.toPx() / SEGMENTS_PER_WAVELENGTH

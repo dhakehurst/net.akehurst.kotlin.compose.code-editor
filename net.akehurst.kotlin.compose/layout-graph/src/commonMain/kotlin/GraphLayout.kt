@@ -18,8 +18,13 @@ import androidx.compose.ui.input.pointer.onPointerEvent
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.Layout
 import androidx.compose.ui.layout.layout
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.asStateFlow
 import kotlin.math.roundToInt
 
+/**
+ * change the id if you want the graph to update
+ */
 data class GraphLayoutGraph(
     /** identified the graph, change it to indicate a state change */
     val id: String
@@ -60,21 +65,26 @@ data class GraphLayoutEdge(
 
 
 @Stable
-class GraphLayoutState(
-    initialGraph: GraphLayoutGraph = GraphLayoutGraph("initial"),
-) {
+class GraphLayoutStateHolder {
     var zoom by mutableStateOf(1f)
     var offset by mutableStateOf(androidx.compose.ui.geometry.Offset.Zero)
     var routing by mutableStateOf(EdgeRouting.RECTILINEAR)
-    var graph by mutableStateOf(initialGraph)
+
+    val _graph = MutableStateFlow<GraphLayoutGraph>(GraphLayoutGraph("init"))
+    var graph  = _graph.asStateFlow()
+
+    fun updateGraph(graph: GraphLayoutGraph) {
+        _graph.value = graph
+    }
 }
 
 @OptIn(ExperimentalComposeUiApi::class)
 @Composable
 fun GraphLayoutView(
-    state: GraphLayoutState,
+    stateHolder: GraphLayoutStateHolder,
     modifier: Modifier = Modifier,
 ) {
+    val graphState = stateHolder.graph.collectAsState().value
     Box(
         modifier = modifier
             .clip(RectangleShape) // Clip the content to the bounds of the Box
@@ -83,28 +93,28 @@ fun GraphLayoutView(
                 detectTransformGestures { centroid, pan, zoom, gestureRotation ->
                     // Calculate the new scale.
                     // Keep the scale within a reasonable range (e.g., 0.5f to 5f).
-                    val oldScale = state.zoom
-                    val newScale = (state.zoom * zoom).coerceIn(0.5f, 5f)
+                    val oldScale = stateHolder.zoom
+                    val newScale = (stateHolder.zoom * zoom).coerceIn(0.5f, 5f)
 
                     // Update the states.
-                    state.zoom = newScale
-                    state.offset += pan
+                    stateHolder.zoom = newScale
+                    stateHolder.offset += pan
                     //rotation += gestureRotation
                 }
             }
             .onPointerEvent(PointerEventType.Scroll) { event ->
                 // Handle mouse scroll for zooming
                 val delta = event.changes.first().scrollDelta.y
-                state.zoom = (state.zoom - delta * 0.1f).coerceIn(0.5f, 5f) // 0.1f is a sensitivity factor
+                stateHolder.zoom = (stateHolder.zoom - delta * 0.1f).coerceIn(0.5f, 5f) // 0.1f is a sensitivity factor
             },
     ) {
         Box(
             modifier = Modifier
                 .graphicsLayer(
-                    scaleX = state.zoom,
-                    scaleY = state.zoom,
-                    translationX = state.offset.x,
-                    translationY = state.offset.y,
+                    scaleX = stateHolder.zoom,
+                    scaleY = stateHolder.zoom,
+                    translationX = stateHolder.offset.x,
+                    translationY = stateHolder.offset.y,
                     // rotationZ = rotation
                 )
         ) {
@@ -114,19 +124,19 @@ fun GraphLayoutView(
             Layout(
                 modifier = modifier.fillMaxSize(),
                 content = {
-                    state.graph.nodes.map { node -> node.content() }
+                    graphState.nodes.map { node -> node.content() }
                 }
             ) { measurables, constraints ->
                 val placeables = measurables.map { measurable -> measurable.measure(constraints.copy(minWidth = 0, minHeight = 0)) }
 
-                val nodes = state.graph.nodes
-                val nodesById = state.graph.nodesById
+                val nodes = graphState.nodes
+                val nodesById = graphState.nodesById
                 val sgl = SugiyamaLayout<GraphLayoutNode>(
                     nodeWidth = { node -> placeables[nodes.indexOf(node)].width.toDouble() },
                     nodeHeight = { node -> placeables[nodes.indexOf(node)].height.toDouble() },
-                    edgeRouting = state.routing
+                    edgeRouting = stateHolder.routing
                 )
-                val edges = state.graph.edges.map {
+                val edges = graphState.edges.map {
                     val src = nodesById[it.sourceId]!!
                     val tgt = nodesById[it.targetId]!!
                     Pair(src, tgt)
@@ -135,9 +145,9 @@ fun GraphLayoutView(
 
                 layout(width = graphLayoutData.totalWidth.roundToInt(), height = graphLayoutData.totalHeight.roundToInt()) {
                     placeables.forEachIndexed { index, placeable ->
-                        val node = state.graph.nodes[index]
+                        val node = graphState.nodes[index]
                         val position = graphLayoutData.nodePositions[node]
-                        println("** layout ${node.id} at $position")
+                       println("** layout ${node.id} at $position")
                         if (null != position) {
                             placeable.placeRelative(x = position.first.roundToInt(), y = position.second.roundToInt())
                         }
@@ -157,7 +167,7 @@ fun GraphLayoutView(
                     }
             ) {
                 graphLayoutData!!.edgeRoutes.forEach { (edge, route) ->
-                    println("** Edge: $edge ${route}")
+                   println("** Edge: $edge ${route}")
                     drawPath(
                         path = Path().apply {
                             route.forEachIndexed { idx, pt ->

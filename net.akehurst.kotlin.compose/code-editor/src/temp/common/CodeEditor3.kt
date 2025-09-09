@@ -314,7 +314,7 @@ class EditorState3(
                             getLineTokens(lineNum, lineStartPos, lineText)
                         } catch (t: Throwable) {
                             //TODO: log error!
-                            println("Error: in getLineTokens ${t.message} ${t.stackTraceToString()}")
+                            println("Error: in getLineTokens ${t.message} ${t.stackTraceToString()}") //TODO: logging!
                             emptyList()
                         }
                         for (tk in toks) {
