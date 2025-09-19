@@ -10,6 +10,7 @@ kotlin {
             dependencies {
                 api(libs.nak.kotlinx.collections)
 
+                implementation(project(":components"))
                 implementation(compose.ui)
                 implementation(compose.foundation)
                 implementation(compose.material3)

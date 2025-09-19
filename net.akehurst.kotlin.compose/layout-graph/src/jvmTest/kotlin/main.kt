@@ -1,5 +1,7 @@
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.size
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Text
@@ -7,15 +9,16 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.singleWindowApplication
-import net.akehurst.kotlin.components.layout.graph.GraphLayoutGraph
-import net.akehurst.kotlin.components.layout.graph.GraphLayoutStateHolder
+import net.akehurst.kotlin.components.layout.graph.GraphLayoutGraphState
 import net.akehurst.kotlin.components.layout.graph.GraphLayoutView
+import net.akehurst.kotlin.components.layout.graph.GraphLayoutViewState
+import net.akehurst.kotlin.compose.components.flowHolder.mutableStateFlowHolderOf
 import kotlin.test.Test
 
 
 class test_MultiPaneLayout {
 
-    fun GraphLayoutGraph.addNode(id:String, color: Color,width:Int, height:Int) = this.addNode(id) {
+    fun GraphLayoutGraphState.addNode(id:String, color: Color, width:Int, height:Int) = this.addNode(id) {
         Column(
             modifier = Modifier
                 .size(width.dp, height.dp)
@@ -29,7 +32,7 @@ class test_MultiPaneLayout {
     @Test
     fun main() {
         // initial layout
-        val graph = GraphLayoutGraph("g")
+        val graph = GraphLayoutGraphState("g")
         graph.addNode("A",Color.Red,50,50)
        // graph.addNode("B",Color.Blue,150, 150)
         graph.addNode("C",Color.Yellow,50, 50)
@@ -38,15 +41,26 @@ class test_MultiPaneLayout {
        // graph.addEdge("e2", "B", "C")
 
         //println(graph.asString(""))
-        val stateHolder = GraphLayoutStateHolder()
-        stateHolder.updateGraph(graph)
+        val graphStateHolder = mutableStateFlowHolderOf(GraphLayoutGraphState(""))
+        graphStateHolder.update { graph }
+
+        val graphViewState = mutableStateFlowHolderOf(GraphLayoutViewState())
 
         singleWindowApplication(
-            title = "Demo MultiPaneLayout",
+            title = "Demo GraphLayout",
         ) {
+            val vs = graphViewState.collectAsState()
+            val gs = graphStateHolder.collectAsState()
             GraphLayoutView(
-                stateHolder = stateHolder,
+                viewState = vs.value,
+                graphState = gs.value,
+                updateView = { o, z, r -> graphViewState.update {
+                    it.copy(offset = o, zoom = z, routing = r)
+                } },
+                routingSelectorsColor = Color.Red,
                 modifier = Modifier
+                    //.fillMaxSize()
+                    .border(color = Color.Red, width = 1.dp)
                     .background(Color.Green),
             )
         }

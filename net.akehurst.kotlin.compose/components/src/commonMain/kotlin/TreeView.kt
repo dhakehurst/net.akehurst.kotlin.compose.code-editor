@@ -17,6 +17,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import net.akehurst.kotlin.compose.components.flowHolder.mutableStateFlowHolderOf
 
 //TODO: use nak.kotlinx.Tree
 data class TreeViewNode(
@@ -26,16 +27,18 @@ data class TreeViewNode(
     var hasChildren: Boolean = false
     var fetchChildren: suspend () -> List<TreeViewNode> = { emptyList() }
     var children by mutableStateOf<List<TreeViewNode>>(emptyList())
+
+    val data:MutableMap<String,Any?> = mutableMapOf()
 }
 
 class TreeViewStateHolder(
 
 ) {
-    var items by mutableStateOf(listOf(TreeViewNode("<no content>")))
+    var items = mutableStateFlowHolderOf(listOf(TreeViewNode("<no content>")))
     val lazyListState = LazyListState()
 
     fun updateItems(newItems: List<TreeViewNode>) {
-        items = newItems
+        items.update { newItems }
     }
 }
 
@@ -59,13 +62,13 @@ fun TreeView(
 ) {
 
     val expandedItems = remember { mutableStateListOf<TreeViewNode>() }
-
+    val nodes = stateHolder.items.collectAsState()
     LazyColumn(
         state = stateHolder.lazyListState
     ) {
         nodes(
             level = 0,
-            nodes = stateHolder.items,
+            nodes = nodes.value,
             isExpanded = {
                 expandedItems.contains(it)
             },
