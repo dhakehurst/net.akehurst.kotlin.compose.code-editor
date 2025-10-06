@@ -49,8 +49,8 @@ class test_TableView {
             ){
                 for(i in 1 .. 20) {
                     tableRow(
-                        rowModifier = Modifier
-                            .background(if (i % 2 == 0) Color.White else Color.LightGray)
+                        rowModifier = {Modifier
+                            .background(if (i % 2 == 0) Color.White else Color.LightGray) }
                     ) {
                         tableCell(0,boxModifier = Modifier){Text("Item $i")}
                         tableCell(1,boxModifier = Modifier) {Text("Desc $i")}

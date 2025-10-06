@@ -13,6 +13,11 @@ kotlin {
                 implementation(libs.material.icons.core)
             }
         }
+        commonTest {
+            dependencies {
+                implementation(libs.kotlinx.coroutines.test)
+            }
+        }
         jvmMain {
             dependencies {
                 implementation(compose.desktop.currentOs)
