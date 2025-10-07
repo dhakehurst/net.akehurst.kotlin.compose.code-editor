@@ -69,7 +69,7 @@ class MutableStateFlowHolder<T : Any?>(initialValue: T): MutableStateFlowHolderC
     @Composable
     fun collectAsState() = stateFlow.collectAsState()
 
-    fun onUpdated(scope: CoroutineScope, action: (CompositeEvent) -> Unit) {
+    fun onUpdated(scope: CoroutineScope, action: suspend (CompositeEvent) -> Unit) {
         scope.launch {
             contentFlow
                 .shareIn(scope, SharingStarted.Eagerly, 0)
@@ -138,7 +138,7 @@ class MutableStateFlowHolderList<E : Any?>(initialValue: List<E>) : MutableState
     @Composable
     fun collectAsState() = listStateFlow.collectAsState()
 
-    fun onUpdated(scope: CoroutineScope, action: (List<E>, CompositeEvent) -> Unit) {
+    fun onUpdated(scope: CoroutineScope, action: suspend (List<E>, CompositeEvent) -> Unit) {
         scope.launch(EmptyCoroutineContext + CoroutineName("Element UpdateNotifier for MutableStateFlowHolderList ${this.hashCode()}")) {
             contentFlow
                 .shareIn(this, SharingStarted.Eagerly, 0) // use values from now onwards
@@ -197,7 +197,7 @@ class MutableStateFlowHolderMap<K : Any, V>(initialValue: Map<K, V>) : MutableSt
     @Composable
     fun collectAsState() = mapStateFlow.collectAsState()
 
-    fun onUpdated(scope: CoroutineScope, action: (Map<K, V>, CompositeEvent) -> Unit) {
+    fun onUpdated(scope: CoroutineScope, action: suspend (Map<K, V>, CompositeEvent) -> Unit) {
         scope.launch(EmptyCoroutineContext + CoroutineName("Element UpdateNotifier for MutableStateFlowHolderMap ${this.hashCode()}")) {
             contentFlow
                 .shareIn(this, SharingStarted.Eagerly, 0) // use values from now onwards

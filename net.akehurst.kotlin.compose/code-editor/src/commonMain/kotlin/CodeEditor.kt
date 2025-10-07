@@ -28,7 +28,6 @@ import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.text.input.OutputTransformation
 import androidx.compose.foundation.text.input.TextFieldBuffer
 import androidx.compose.foundation.text.input.TextFieldState
-import androidx.compose.foundation.text.input.setTextAndPlaceCursorAtEnd
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -160,7 +159,7 @@ fun CodeEditorView(
             handleKeyEvent = { ev -> editorState.handleKeyEvent(ev) },
             onTextChange = { editorState.onTextChange.invoke(it) },
             onInputScroll = { editorState.onInputScroll(it) },
-            onFocusChanged = { editorState.isFocused = it; editorState.giveFocus = false }
+            onFocusChanged = { editorState._isFocused = it; editorState._giveFocus = false }
         )
 
         AutocompletePopup2(
@@ -366,30 +365,30 @@ class CodeEditorStateHolder(
     }
 
     private val MARGIN_WIDTH = 20.dp
-    private val interactionSource = MutableInteractionSource()
-    private var giveFocus = false
-    private var isFocused = false
-    private val focusRequester by mutableStateOf(FocusRequester())
+    private val _interactionSource = MutableInteractionSource()
+    private var _giveFocus = false
+    private var _isFocused = false
+    private val _focusRequester by mutableStateOf(FocusRequester())
 
 //    private val inputTextFieldState by mutableStateOf(TextFieldState(initialText))
-    private val inputTextFieldState = mutableStateFlowHolderOf(TextFieldState(initialText))
-    private val _inputRawText by derivedStateOf { snapshotFlow { inputTextFieldState.value.text } }
+    private val _inputTextFieldState = mutableStateFlowHolderOf(TextFieldState(initialText))
+    private val _inputRawText by derivedStateOf { snapshotFlow { _inputTextFieldState.value.text } }
     private val _lineStyles = mutableStateMapOf<Int, List<EditorSegmentStyle>>()
 
     internal var lastAnnotatedText: AnnotatedString? = null
-    private val inputScrollState by mutableStateOf(ScrollState(0))
+    private val _inputScrollState by mutableStateOf(ScrollState(0))
     // val inputScrollerViewportSize get() = inputScrollState.maxValue// viewportSize
     // val inputScrollerOffset get() = inputScrollState.value
 
     // so we can get the annotatedstring
-    private var lastTextLayoutResult: TextLayoutResult? = null
+    private var _lastTextLayoutResult: TextLayoutResult? = null
 
-    private val viewCursor by mutableStateOf(CursorDetails(SolidColor(Color.Red)))
-    private var viewFirstLine by mutableStateOf(0)
-    private var viewLastLine by mutableStateOf(0)
-    private var lineScrollOffset by mutableStateOf(0f)
-    private var viewFirstLineStartTextPosition by mutableStateOf(0)
-    private var viewLastLineFinishTextPosition by mutableStateOf(0)
+    private val _viewCursor by mutableStateOf(CursorDetails(SolidColor(Color.Red)))
+    private var _viewFirstLine by mutableStateOf(0)
+    private var _viewLastLine by mutableStateOf(0)
+    private var _lineScrollOffset by mutableStateOf(0f)
+    private var _viewFirstLineStartTextPosition by mutableStateOf(0)
+    private var _viewLastLineFinishTextPosition by mutableStateOf(0)
 
     //val inputTransformation = InputTransformation({
     //     annotateTextFieldBuffer(this)
@@ -400,15 +399,15 @@ class CodeEditorStateHolder(
 
     private val _autocompleteState by mutableStateOf(
         AutocompleteStateCompose( //TODO: don't get 'value' of inputTextFieldState flow
-            getText = { this.inputTextFieldState.value.text },
-            getCursorPosition = { this.inputTextFieldState.value.selection.min },
+            getText = { this._inputTextFieldState.value.text },
+            getCursorPosition = { this._inputTextFieldState.value.selection.min },
             getMenuOffset = { cursorPos() },
             insertText = { offset, txt ->
-                val start = inputTextFieldState.value.selection.min
-                val end = inputTextFieldState.value.selection.max
+                val start = _inputTextFieldState.value.selection.min
+                val end = _inputTextFieldState.value.selection.max
 //                val s = minOf(start,end)
 //                val e = maxOf(start,end)
-                this.inputTextFieldState.value.edit {
+                this._inputTextFieldState.value.edit {
                     this.replace(start - offset, end, txt)
                 }
             }
@@ -417,27 +416,27 @@ class CodeEditorStateHolder(
 
     private val _marginItemsStateHolder = MarginItemsStateHolder()
 
-    private val textMarkersState by mutableStateOf(TextMarkerState()) //TODO: try using TextFieldDecorator for these
-    private val textMarkersVisible by derivedStateOf {
-        textMarkersState.markers.filter { viewFirstLineStartTextPosition <= it.position && it.position <= viewLastLineFinishTextPosition }
+    private val _textMarkersState by mutableStateOf(TextMarkerState()) //TODO: try using TextFieldDecorator for these
+    private val _textMarkersVisible by derivedStateOf {
+        _textMarkersState.markers.filter { _viewFirstLineStartTextPosition <= it.position && it.position <= _viewLastLineFinishTextPosition }
     }
 
     // val underlineAnimator = rememberSquigglyUnderlineAnimator()
-    private val extendedSpans = ExtendedSpans(STRAIGHT, SQUIGGLY)
+    private val _extendedSpans = ExtendedSpans(STRAIGHT, SQUIGGLY)
 
     @Composable
     fun collectAsState(): CodeEditorState {
         return CodeEditorState(
-            inputTextFieldState = this.inputTextFieldState.collectAsState(),
-            extendedSpans = this.extendedSpans,
-            inputScrollState = this.inputScrollState,
-            giveFocus = this.giveFocus,
-            lastTextLayoutResult = this.lastTextLayoutResult,
-            viewFirstLine = this.viewFirstLine,
-            viewLastLine = this.viewLastLine,
-            lineScrollOffset = lineScrollOffset,
+            inputTextFieldState = this._inputTextFieldState.collectAsState(),
+            extendedSpans = this._extendedSpans,
+            inputScrollState = this._inputScrollState,
+            giveFocus = this._giveFocus,
+            lastTextLayoutResult = this._lastTextLayoutResult,
+            viewFirstLine = this._viewFirstLine,
+            viewLastLine = this._viewLastLine,
+            lineScrollOffset = _lineScrollOffset,
             lineTokens = lineStyles,
-            textMarkersVisible = textMarkersVisible
+            textMarkersVisible = _textMarkersVisible
         )
     }
 
@@ -503,40 +502,40 @@ class CodeEditorStateHolder(
 
     // useful helpers
     fun setNewText(text: String) {
-        this.inputTextFieldState.update {
+        this._inputTextFieldState.update {
             TextFieldState(text, it.selection)
         }
         //this.inputTextFieldState.setTextAndPlaceCursorAtEnd(text)
     }
 
     fun onInputScroll(i: ScrollState) {
-        if (null != lastTextLayoutResult) {
-            updateViewDetails(lastTextLayoutResult!!)
+        if (null != _lastTextLayoutResult) {
+            updateViewDetails(_lastTextLayoutResult!!)
         }
     }
 
     fun onInputTextLayout(textLayoutResult: TextLayoutResult) {
         _autocompleteState.close()
         updateViewDetails(textLayoutResult)
-        lastTextLayoutResult = textLayoutResult
-        extendedSpans.onTextLayout(textLayoutResult)
+        _lastTextLayoutResult = textLayoutResult
+        _extendedSpans.onTextLayout(textLayoutResult)
     }
 
     private fun updateViewDetails(textLayoutResult: TextLayoutResult) {
-        val st = inputScrollState.value.toFloat()
-        val len = inputScrollState.viewportSize
-        viewFirstLine = textLayoutResult.getLineForVerticalPosition(st)
-        viewLastLine = textLayoutResult.getLineForVerticalPosition(st + len-1)
-        viewFirstLineStartTextPosition = textLayoutResult.getLineStart(viewFirstLine)
-        viewLastLineFinishTextPosition = textLayoutResult.getLineEnd(viewLastLine)
-        val topOfFirstLine = textLayoutResult.getLineTop(viewFirstLine)
-        lineScrollOffset = st - topOfFirstLine
+        val st = _inputScrollState.value.toFloat()
+        val len = _inputScrollState.viewportSize
+        _viewFirstLine = textLayoutResult.getLineForVerticalPosition(st)
+        _viewLastLine = textLayoutResult.getLineForVerticalPosition(st + len-1)
+        _viewFirstLineStartTextPosition = textLayoutResult.getLineStart(_viewFirstLine)
+        _viewLastLineFinishTextPosition = textLayoutResult.getLineEnd(_viewLastLine)
+        val topOfFirstLine = textLayoutResult.getLineTop(_viewFirstLine)
+        _lineScrollOffset = st - topOfFirstLine
     }
 
     fun cursorPos(): IntOffset {
         // update the drawn cursor position
-        val sel = inputTextFieldState.value.selection
-        val tlr = lastTextLayoutResult
+        val sel = _inputTextFieldState.value.selection
+        val tlr = _lastTextLayoutResult
         return if (null != tlr) {
             val txtLen = tlr.layoutInput.text.length
             val selStart = sel.start.coerceIn(0, txtLen)
@@ -544,7 +543,7 @@ class CodeEditorStateHolder(
             val lineBot = tlr.getLineBottom(currentLine).roundToInt()
             val lineEnd = tlr.getLineEnd(currentLine, true)
             val cursOffset = tlr.getHorizontalPosition(minOf(selStart, lineEnd), true).roundToInt()
-            val scrollOffset = inputScrollState.value
+            val scrollOffset = _inputScrollState.value
             //println("currentLine=${currentLine}, lineBot=${lineBot}, cursOffset=$cursOffset,  scrollOffset=$scrollOffset")
             return IntOffset(cursOffset, lineBot - scrollOffset)
         } else {
@@ -573,7 +572,7 @@ class CodeEditorStateHolder(
     // --- ComposeCodeEditor ---
 
     override var rawText: String
-        get() = this._inputRawText.toString()
+        get() = this._inputTextFieldState.value.text.toString()
         set(value) {
             this.setNewText(value)
         }
@@ -603,7 +602,7 @@ class CodeEditorStateHolder(
         }
 
     override fun focus() {
-        this.giveFocus = true
+        this._giveFocus = true
     }
 
 //    override fun refreshTokens() {
@@ -616,11 +615,11 @@ class CodeEditorStateHolder(
 //    }
 
     override fun clearTextMarkers() {
-        this.textMarkersState.clear()
+        this._textMarkersState.clear()
     }
 
     override fun addTextMarker(position: Int, length: Int, style: SpanStyle, decoration: TextDecorationStyle) {
-        this.textMarkersState.addMarker(position, length, style, decoration)
+        this._textMarkersState.addMarker(position, length, style, decoration)
     }
 
     override fun clearMarginItems() {

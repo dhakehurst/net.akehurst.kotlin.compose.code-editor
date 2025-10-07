@@ -29,6 +29,7 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -59,22 +60,12 @@ class TreeViewStateHolder(
 
 }
 
-/*
-private fun toggleExpanded(expandedItems: MutableList<TreeViewNode>, node: TreeViewNode) {
-    if (expandedItems.contains(node)) {
-        expandedItems.remove(node)
-    } else {
-        expandedItems.add(node)
-    }
-}
-*/
-
 @Composable
 fun TreeView(
     stateHolder: TreeViewStateHolder,
     onSelectItem: (item: TreeViewNode) -> Unit = {},
-    expanded: @Composable (Modifier) -> Unit = { modifier -> Icon(imageVector = Icons.AutoMirrored.Default.ArrowForward, contentDescription = "Close", modifier = modifier) },
-    collapsed: @Composable (Modifier) -> Unit = { modifier -> Icon(imageVector = Icons.Default.ArrowDropDown, contentDescription = "Open", modifier = modifier) },
+    expanded: @Composable (Modifier) -> Unit = { expMod -> Icon(imageVector = Icons.Default.ArrowDropDown, contentDescription = "Close", modifier = expMod) },
+    collapsed: @Composable (Modifier) -> Unit = { colMod -> Icon(imageVector = Icons.Default.ArrowDropDown, contentDescription = "Open", modifier = colMod.graphicsLayer{ rotationZ = 90f }) },
     modifier: Modifier = Modifier,
 ) {
 
