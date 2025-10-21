@@ -14,9 +14,6 @@
  * limitations under the License.
  */
 
-import com.github.gmazzo.buildconfig.BuildConfigExtension
-import org.jetbrains.kotlin.gradle.dsl.KotlinMultiplatformExtension
-import java.io.File
 
 plugins {
     alias(libs.plugins.kotlin) apply false
@@ -24,9 +21,10 @@ plugins {
     alias(libs.plugins.kotlin.compose) apply false
     alias(libs.plugins.dokka) apply false
     alias(libs.plugins.buildconfig) apply false
-    alias(libs.plugins.credentials) apply true
-    alias(libs.plugins.exportPublic) apply false
 }
+project.layout.buildDirectory = File(rootProject.projectDir, ".gradle-build/${project.name}")
+
+/*
 val kotlin_languageVersion = org.jetbrains.kotlin.gradle.dsl.KotlinVersion.KOTLIN_2_2
 val kotlin_apiVersion = org.jetbrains.kotlin.gradle.dsl.KotlinVersion.KOTLIN_2_2
 val jvmTargetVersion = org.jetbrains.kotlin.gradle.dsl.JvmTarget.JVM_11
@@ -202,3 +200,5 @@ subprojects {
         resolutionStrategy.cacheChangingModulesFor(0, "seconds")
     }
 }
+
+ */

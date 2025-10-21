@@ -416,7 +416,7 @@ class CodeEditorStateHolder(
 
     private val _marginItemsStateHolder = MarginItemsStateHolder()
 
-    private val _textMarkersState by mutableStateOf(TextMarkerState()) //TODO: try using TextFieldDecorator for these
+    private val _textMarkersState by mutableStateOf(TextMarkerState())
     private val _textMarkersVisible by derivedStateOf {
         _textMarkersState.markers.filter { _viewFirstLineStartTextPosition <= it.position && it.position <= _viewLastLineFinishTextPosition }
     }

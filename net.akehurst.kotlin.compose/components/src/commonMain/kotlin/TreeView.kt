@@ -65,7 +65,7 @@ fun TreeView(
     stateHolder: TreeViewStateHolder,
     onSelectItem: (item: TreeViewNode) -> Unit = {},
     expanded: @Composable (Modifier) -> Unit = { expMod -> Icon(imageVector = Icons.Default.ArrowDropDown, contentDescription = "Close", modifier = expMod) },
-    collapsed: @Composable (Modifier) -> Unit = { colMod -> Icon(imageVector = Icons.Default.ArrowDropDown, contentDescription = "Open", modifier = colMod.graphicsLayer{ rotationZ = 90f }) },
+    collapsed: @Composable (Modifier) -> Unit = { colMod -> Icon(imageVector = Icons.Default.ArrowDropDown, contentDescription = "Open", modifier = colMod.graphicsLayer{ rotationZ = -90f }) },
     modifier: Modifier = Modifier,
 ) {
 

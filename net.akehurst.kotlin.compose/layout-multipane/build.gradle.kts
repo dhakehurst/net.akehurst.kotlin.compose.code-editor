@@ -1,10 +1,10 @@
 plugins {
+    id("project-conventions")
     alias(libs.plugins.compose)
     alias(libs.plugins.kotlin.compose)
 }
 
 kotlin {
-
 
     sourceSets {
         commonMain {
