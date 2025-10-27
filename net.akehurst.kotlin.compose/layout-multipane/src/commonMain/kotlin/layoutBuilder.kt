@@ -1,7 +1,7 @@
 package net.akehurst.kotlin.compose.layout.multipane
 
 import androidx.compose.runtime.Composable
-import androidx.compose.ui.layout.Layout
+import net.akehurst.kotlin.compose.components.SplitOrientation
 import net.akehurst.kotlinx.utils.UniqueIdentityGenerator
 
 /**

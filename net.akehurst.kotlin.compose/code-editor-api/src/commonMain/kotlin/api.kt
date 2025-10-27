@@ -36,28 +36,31 @@ data class AutocompleteRequestData(
 enum class TextDecorationStyle {
     NONE,STRAIGHT, SQUIGGLY
 }
-interface ComposeCodeEditor {
 
+interface ComposeCodeViewer {
     var rawText: String
     var lineStyles: Map<Int,List<EditorSegmentStyle>>
     var annotatedText: AnnotatedString
-
-    var onTextChange: (CharSequence) -> Unit
 
     /**
      * indicators that sit in the margin next to a specific line
      */
     val marginItems: List<MarginItem>
 
-    val autocomplete: AutocompleteState
-    var requestAutocompleteSuggestions: AutocompleteFunction
-
-    fun focus()
-    //fun refreshTokens()
     fun clearTextMarkers()
     fun addTextMarker(position:Int, length:Int, style: SpanStyle, decoration:TextDecorationStyle = TextDecorationStyle.NONE)
     fun clearMarginItems()
     fun addMarginItem(lineNumber: Int, kind: String, text: String, icon: ImageVector, color: Color)
+
+}
+
+interface ComposeCodeEditor : ComposeCodeViewer {
+
+    var onTextChange: (CharSequence) -> Unit
+    val autocomplete: AutocompleteState
+    var requestAutocompleteSuggestions: AutocompleteFunction
+
+    fun focus()
 }
 
 interface AutocompleteState {

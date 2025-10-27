@@ -36,9 +36,10 @@ class ComposableCodeEditor(
 
     val editorState = CodeEditorStateHolder(
         initialText = initialText
-    ).also {
-        onTextChange = { onTextChange.invoke(it) }
-    }
+    )
+//        .also {
+//        onTextChange = { onTextChange.invoke(it) }
+//    }
 
     override var rawText: String
         get() = editorState.rawText

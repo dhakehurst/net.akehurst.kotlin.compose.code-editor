@@ -2,12 +2,8 @@ package net.akehurst.kotlin.compose.layout.multipane
 
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.geometry.Rect
+import net.akehurst.kotlin.compose.components.SplitOrientation
 import net.akehurst.kotlinx.utils.UniqueIdentityGenerator
-
-/**
- * Defines the orientation of a Split.
- */
-enum class SplitOrientation { Horizontal, Vertical }
 
 /**
  * Represents a single content pane in the layout.

@@ -21,12 +21,7 @@ import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.gestures.Orientation
 import androidx.compose.foundation.gestures.detectDragGestures
-import androidx.compose.foundation.gestures.draggable
-import androidx.compose.foundation.gestures.rememberDraggableState
-import androidx.compose.foundation.hoverable
-import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.*
 import androidx.compose.material3.*
 import androidx.compose.material3.TabRowDefaults.tabIndicatorOffset
@@ -47,6 +42,8 @@ import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.zIndex
+import net.akehurst.kotlin.compose.components.SplitOrientation
+import net.akehurst.kotlin.compose.components.Splitter
 import kotlin.math.roundToInt
 
 data class RectInWindow(val value: Rect) {
@@ -191,12 +188,14 @@ fun MultiPaneLayout(
     // State to hold the LayoutCoordinates of the root Box (MultiWindowLayout itself)
     var rootLayoutCoordinates by remember { mutableStateOf<LayoutCoordinates?>(null) }
 
-    Column {
+    Column(
+        modifier = modifier
+    ) {
         topRow.invoke(this)
         // Provide the MutableState<DragState> object to all children via CompositionLocal
         CompositionLocalProvider(LocalDragState provides dragState) { // Corrected: Provides the MutableState object
             Box(
-                modifier = modifier
+                modifier = Modifier
                     .fillMaxSize()
                     .onGloballyPositioned { coordinates ->
                         rootLayoutCoordinates = coordinates // Capture coordinates of the root Box
@@ -991,37 +990,4 @@ private fun LayoutNodeRenderer(
             }
         }
     }
-}
-
-/**
- * A draggable splitter that allows resizing of adjacent panes.
- * @param orientation The orientation of the splitter (Vertical for horizontal resizing, Horizontal for vertical resizing).
- * @param thickness The visual thickness of the splitter.
- * @param onDrag Callback providing the drag amount.
- */
-@Composable
-private fun Splitter(
-    orientation: SplitOrientation,
-    thickness: Dp,
-    onDrag: (Float) -> Unit
-) {
-    val draggableState = rememberDraggableState { delta ->
-        onDrag(delta)
-    }
-
-    Spacer(
-        modifier = Modifier
-            .background(MaterialTheme.colorScheme.outlineVariant) // Neutral color for splitter
-            .run {
-                if (orientation == SplitOrientation.Vertical) {
-                    width(thickness).fillMaxHeight()
-                } else {
-                    height(thickness).fillMaxWidth()
-                }
-            }
-            .draggable(
-                state = draggableState,
-                orientation = if (orientation == SplitOrientation.Vertical) Orientation.Horizontal else Orientation.Vertical
-            )
-    )
 }
